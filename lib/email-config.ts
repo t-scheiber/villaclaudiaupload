@@ -89,8 +89,8 @@ export async function sendDocumentRequestEmail(
       subject: 'Please Upload Your Travel Documents for Your Stay at Villa Claudia',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background-color: #1e40af; color: white; padding: 20px; text-align: center;">
-            <h1 style="margin: 0;">Villa Claudia</h1>
+          <div style="background-color: #ffffff; color: white; padding: 20px; text-align: center;">
+            <img src="${baseUrl}/Logo.png" alt="Villa Claudia" width="200" style="max-width: 100%;" />
           </div>
           <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
             <p>Dear ${guestName},</p>
@@ -100,7 +100,7 @@ export async function sendDocumentRequestEmail(
             <p>As required by Croatian law, we need to register all foreign guests with the authorities within 24 hours of arrival. To make your check-in process smoother, please upload your travel documents (passport or ID) before arrival.</p>
             
             <p style="margin: 30px 0; text-align: center;">
-              <a href="${uploadUrl}" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+              <a href="${uploadUrl}" style="background-color: #4a8b96; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
                 Upload Your Documents
               </a>
             </p>
