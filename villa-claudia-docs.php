@@ -31,6 +31,9 @@ class Villa_Claudia_Docs {
         
         // Add AJAX handlers
         add_action('wp_ajax_villa_claudia_view_document', array($this, 'ajax_view_document'));
+        
+        // Add handler for updating document status
+        add_action('admin_init', array($this, 'handle_document_status_update'));
     }
     
     public function init() {
@@ -202,6 +205,17 @@ class Villa_Claudia_Docs {
             'manage_options',
             'villa-claudia-docs',
             array($this, 'admin_page')
+        );
+        
+        // Add new Documents Upload admin page
+        add_menu_page(
+            'Document Uploads',
+            'Document Uploads',
+            'manage_options',
+            'document-uploads',
+            array($this, 'document_uploads_page'),
+            'dashicons-media-document',
+            30
         );
     }
     
@@ -448,6 +462,263 @@ class Villa_Claudia_Docs {
             'wordpress' => get_bloginfo('version'),
             'timestamp' => current_time('mysql')
         );
+    }
+    
+    /**
+     * Render the Document Uploads admin page
+     */
+    public function document_uploads_page() {
+        // Check if document deletion requested
+        if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['document_id']) && isset($_GET['booking_id'])) {
+            $this->delete_document($_GET['booking_id'], $_GET['document_id']);
+        }
+        
+        // Get all bookings with documents
+        global $wpdb;
+        $bookings_with_docs = $wpdb->get_col(
+            "SELECT post_id FROM {$wpdb->postmeta} 
+             WHERE meta_key = 'villa_claudia_has_documents' 
+             AND meta_value = '1'"
+        );
+        
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline">Guest Documents</h1>
+            
+            <!-- Filters -->
+            <div class="tablenav top">
+                <div class="alignleft actions">
+                    <form method="get">
+                        <input type="hidden" name="page" value="document-uploads">
+                        <select name="booking_filter" id="booking-filter">
+                            <option value="">All Bookings</option>
+                            <?php
+                            foreach ($bookings_with_docs as $booking_id) {
+                                $selected = isset($_GET['booking_filter']) && $_GET['booking_filter'] == $booking_id ? 'selected' : '';
+                                echo '<option value="' . esc_attr($booking_id) . '" ' . $selected . '>Booking #' . esc_html($booking_id) . '</option>';
+                            }
+                            ?>
+                        </select>
+                        
+                        <select name="status_filter" id="status-filter">
+                            <option value="">All Statuses</option>
+                            <option value="verified" <?php echo isset($_GET['status_filter']) && $_GET['status_filter'] == 'verified' ? 'selected' : ''; ?>>Verified</option>
+                            <option value="pending" <?php echo isset($_GET['status_filter']) && $_GET['status_filter'] == 'pending' ? 'selected' : ''; ?>>Pending</option>
+                            <option value="rejected" <?php echo isset($_GET['status_filter']) && $_GET['status_filter'] == 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        </select>
+                        
+                        <input type="search" id="doc-search" name="s" value="<?php echo isset($_GET['s']) ? esc_attr($_GET['s']) : ''; ?>" placeholder="Search by traveler name...">
+                        
+                        <input type="submit" id="search-submit" class="button" value="Filter">
+                    </form>
+                </div>
+                <br class="clear">
+            </div>
+            
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th scope="col" class="manage-column">Traveler</th>
+                        <th scope="col" class="manage-column">Booking ID</th>
+                        <th scope="col" class="manage-column">Document Type</th>
+                        <th scope="col" class="manage-column">Document Number</th>
+                        <th scope="col" class="manage-column">Uploaded</th>
+                        <th scope="col" class="manage-column">Status</th>
+                        <th scope="col" class="manage-column">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    foreach ($bookings_with_docs as $booking_id) {
+                        // Skip if filtering by booking ID and doesn't match
+                        if (isset($_GET['booking_filter']) && !empty($_GET['booking_filter']) && $_GET['booking_filter'] != $booking_id) {
+                            continue;
+                        }
+                        
+                        $documents = get_post_meta($booking_id, 'villa_claudia_document');
+                        
+                        if (empty($documents)) {
+                            continue;
+                        }
+                        
+                        $booking_post = get_post($booking_id);
+                        $guest_email = get_post_meta($booking_id, 'mphb_email', true);
+                        
+                        foreach ($documents as $document) {
+                            // Skip if filtering by status
+                            $doc_status = isset($document['status']) ? $document['status'] : 'pending';
+                            if (isset($_GET['status_filter']) && !empty($_GET['status_filter']) && $_GET['status_filter'] != $doc_status) {
+                                continue;
+                            }
+                            
+                            // Skip if searching and doesn't match
+                            if (isset($_GET['s']) && !empty($_GET['s'])) {
+                                $search_term = strtolower($_GET['s']);
+                                $traveler_name = strtolower($document['traveler_name'] ?? '');
+                                
+                                if (strpos($traveler_name, $search_term) === false) {
+                                    continue;
+                                }
+                            }
+                            
+                            $uploaded_at = isset($document['uploaded_at']) ? date('F j, Y', strtotime($document['uploaded_at'])) : 'Unknown';
+                            ?>
+                            <tr>
+                                <td>
+                                    <?php echo esc_html($document['traveler_name'] ?? 'Unknown'); ?>
+                                    <div class="row-actions">
+                                        <span class="email"><?php echo esc_html($guest_email); ?></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="<?php echo admin_url('post.php?post=' . $booking_id . '&action=edit'); ?>">#<?php echo esc_html($booking_id); ?></a>
+                                </td>
+                                <td><?php echo esc_html($document['document_type'] ?? 'Unknown'); ?></td>
+                                <td><?php echo esc_html($document['document_number'] ?? 'Unknown'); ?></td>
+                                <td><?php echo esc_html($uploaded_at); ?></td>
+                                <td>
+                                    <?php
+                                    $status_colors = [
+                                        'pending' => '#ffc107',
+                                        'verified' => '#4CAF50',
+                                        'rejected' => '#f44336'
+                                    ];
+                                    $status_color = isset($status_colors[$doc_status]) ? $status_colors[$doc_status] : '#999';
+                                    ?>
+                                    <span style="color: <?php echo $status_color; ?>; font-weight: bold;">
+                                        <?php echo ucfirst($doc_status); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="<?php echo admin_url('admin-ajax.php?action=villa_claudia_view_document&document_id=' . urlencode($document['filename']) . '&booking_id=' . $booking_id . '&_wpnonce=' . wp_create_nonce('view_document')); ?>" class="button button-small" target="_blank">View</a>
+                                    
+                                    <a href="<?php echo add_query_arg(['action' => 'update_status', 'document_id' => $document['filename'], 'booking_id' => $booking_id, 'status' => 'verified', '_wpnonce' => wp_create_nonce('update_document_status')]); ?>" class="button button-small" style="background-color:#4CAF50;color:white;border-color:#4CAF50;">Verify</a>
+                                    
+                                    <a href="<?php echo add_query_arg(['action' => 'update_status', 'document_id' => $document['filename'], 'booking_id' => $booking_id, 'status' => 'rejected', '_wpnonce' => wp_create_nonce('update_document_status')]); ?>" class="button button-small" style="background-color:#f44336;color:white;border-color:#f44336;">Reject</a>
+                                    
+                                    <a href="<?php echo add_query_arg(['action' => 'delete', 'document_id' => $document['filename'], 'booking_id' => $booking_id, '_wpnonce' => wp_create_nonce('delete_document')]); ?>" class="button button-small" style="color:red;" onclick="return confirm('Are you sure you want to delete this document?');">Delete</a>
+                                </td>
+                            </tr>
+                            <?php
+                        }
+                    }
+                    ?>
+                </tbody>
+            </table>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Delete a document
+     */
+    private function delete_document($booking_id, $document_id) {
+        // Verify nonce
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'delete_document')) {
+            wp_die('Security check failed');
+        }
+        
+        // Check if user has permission
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have permission to delete documents');
+        }
+        
+        $documents = get_post_meta($booking_id, 'villa_claudia_document');
+        $updated_documents = [];
+        $document_found = false;
+        
+        // Remove the document from metadata
+        foreach ($documents as $document) {
+            if ($document['filename'] !== $document_id) {
+                $updated_documents[] = $document;
+            } else {
+                $document_found = true;
+            }
+        }
+        
+        if ($document_found) {
+            // Delete the physical file
+            $upload_dir = wp_upload_dir();
+            $document_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document_id;
+            
+            if (file_exists($document_path)) {
+                unlink($document_path);
+            }
+            
+            // Update the metadata
+            delete_post_meta($booking_id, 'villa_claudia_document');
+            
+            foreach ($updated_documents as $doc) {
+                add_post_meta($booking_id, 'villa_claudia_document', $doc);
+            }
+            
+            // If no documents left, update the has_documents flag
+            if (empty($updated_documents)) {
+                update_post_meta($booking_id, 'villa_claudia_has_documents', false);
+            }
+            
+            // Add admin notice
+            add_action('admin_notices', function() {
+                echo '<div class="notice notice-success is-dismissible"><p>Document deleted successfully.</p></div>';
+            });
+        }
+        
+        // Redirect back to the document list
+        wp_redirect(admin_url('admin.php?page=document-uploads'));
+        exit;
+    }
+    
+    /**
+     * Handle document status updates
+     */
+    public function handle_document_status_update() {
+        if (isset($_GET['action']) && $_GET['action'] === 'update_status' && 
+            isset($_GET['document_id']) && isset($_GET['booking_id']) && isset($_GET['status'])) {
+            
+            // Verify nonce
+            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'update_document_status')) {
+                wp_die('Security check failed');
+            }
+            
+            // Check if user has permission
+            if (!current_user_can('manage_options')) {
+                wp_die('You do not have permission to update document status');
+            }
+            
+            $booking_id = intval($_GET['booking_id']);
+            $document_id = sanitize_text_field($_GET['document_id']);
+            $new_status = sanitize_text_field($_GET['status']);
+            
+            // Validate status
+            if (!in_array($new_status, ['pending', 'verified', 'rejected'])) {
+                wp_die('Invalid status');
+            }
+            
+            $documents = get_post_meta($booking_id, 'villa_claudia_document');
+            $updated = false;
+            
+            foreach ($documents as $index => $document) {
+                if ($document['filename'] === $document_id) {
+                    // Update the status
+                    $document['status'] = $new_status;
+                    // Update in database
+                    update_post_meta($booking_id, 'villa_claudia_document', $document, $documents[$index]);
+                    $updated = true;
+                    break;
+                }
+            }
+            
+            if ($updated) {
+                // Add admin notice
+                add_action('admin_notices', function() use ($new_status) {
+                    echo '<div class="notice notice-success is-dismissible"><p>Document status updated to ' . ucfirst($new_status) . '.</p></div>';
+                });
+            }
+            
+            // Redirect back to the document list
+            wp_redirect(admin_url('admin.php?page=document-uploads'));
+            exit;
+        }
     }
 }
 
