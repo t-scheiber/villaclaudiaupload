@@ -1,0 +1,160 @@
+/* ZigZag Restaurant Posts Layout */
+.zigzag-restaurants {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.zigzag-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 3rem;
+    position: relative;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.zigzag-row:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+/* Even rows (standard layout) */
+.zigzag-row-even .zigzag-image-col {
+    order: 1;
+}
+
+.zigzag-row-even .zigzag-content-col {
+    order: 2;
+}
+
+/* Odd rows (reversed layout) */
+.zigzag-row-odd .zigzag-image-col {
+    order: 2;
+}
+
+.zigzag-row-odd .zigzag-content-col {
+    order: 1;
+}
+
+.zigzag-image-col, 
+.zigzag-content-col {
+    width: 50%;
+    padding: 0;
+}
+
+.zigzag-image-col {
+    overflow: hidden;
+    position: relative;
+}
+
+.zigzag-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.5s ease;
+}
+
+.zigzag-row:hover .zigzag-image {
+    transform: scale(1.05);
+}
+
+.zigzag-no-image {
+    background-color: #f5f5f5;
+    color: #999;
+    text-align: center;
+    padding: 4rem 2rem;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-style: italic;
+}
+
+.zigzag-content-col {
+    padding: 2.5rem;
+    background-color: #fff;
+}
+
+.zigzag-title {
+    font-size: 1.75rem;
+    margin: 0 0 1rem 0;
+    color: #333;
+    font-weight: 600;
+    position: relative;
+    padding-bottom: 0.75rem;
+}
+
+.zigzag-title:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 50px;
+    height: 3px;
+    background-color: #ff9900;
+}
+
+.zigzag-excerpt {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    color: #666;
+}
+
+.zigzag-readmore {
+    display: inline-block;
+    padding: 0.7rem 1.5rem;
+    background-color: #ff9900;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.zigzag-readmore:hover {
+    background-color: #e68a00;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .zigzag-row {
+        flex-direction: column;
+    }
+    
+    .zigzag-image-col,
+    .zigzag-content-col {
+        width: 100%;
+        order: 0; /* Reset order for mobile */
+    }
+    
+    .zigzag-image-col {
+        max-height: 300px;
+    }
+    
+    .zigzag-content-col {
+        padding: 1.5rem;
+    }
+    
+    .zigzag-title {
+        font-size: 1.5rem;
+    }
+}
+
+/* For Divi compatibility */
+.et_pb_module .zigzag-restaurants {
+    width: 100%;
+    padding: 0;
+}
+
+/* For Gutenberg compatibility */
+.wp-block-zigzag-restaurant-posts-restaurants-block .zigzag-restaurants {
+    width: 100%;
+} 
