@@ -2,36 +2,32 @@ import { sendDocumentRequestEmail } from './email-config';
 
 interface Booking {
   id: string;
+  bookingId: string;
   guestEmail: string;
   guestName: string;
-  startDate: Date;
+  checkInDate: string;
   hasUploadedDocuments: boolean;
 }
 
 /**
  * Checks for upcoming bookings that need document reminders
  * This would be called by a cron job daily
- * In a production environment, this would fetch data from your booking system or database
  */
 export async function processDocumentReminders() {
   try {
-    // Get upcoming bookings from your API or database
-    // This is a placeholder - you would implement this to connect to your booking system
+    // Get upcoming bookings from WordPress API
     const upcomingBookings = await fetchUpcomingBookings();
     
     const now = new Date();
-    const oneWeekFromNow = new Date(now);
-    oneWeekFromNow.setDate(now.getDate() + 7);
     
     // Find bookings that start approximately one week from now
-    // We use a range of 24 hours to ensure we don't miss any bookings
     const bookingsNeedingReminders = upcomingBookings.filter(booking => {
       // Skip if documents already uploaded
       if (booking.hasUploadedDocuments) {
         return false;
       }
       
-      const bookingStartDate = new Date(booking.startDate);
+      const bookingStartDate = new Date(booking.checkInDate);
       const daysDifference = Math.floor((bookingStartDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       
       // Check if the booking starts between 6.5 and 7.5 days from now
@@ -45,10 +41,10 @@ export async function processDocumentReminders() {
     const emailResults = await Promise.all(
       bookingsNeedingReminders.map(booking => 
         sendDocumentRequestEmail(
-          booking.id,
+          booking.bookingId,
           booking.guestEmail, 
           booking.guestName,
-          new Date(booking.startDate)
+          new Date(booking.checkInDate)
         )
       )
     );
@@ -69,23 +65,69 @@ export async function processDocumentReminders() {
 }
 
 /**
- * Placeholder function to fetch upcoming bookings
- * In a real implementation, this would connect to your booking system or database
+ * Fetch upcoming bookings from WordPress API
  */
 async function fetchUpcomingBookings(): Promise<Booking[]> {
-  // This is a placeholder - You would implement this to connect to your booking system or database
-  // For example, this might call an API endpoint in your WordPress site
-  
-  // For testing purposes, you could return some sample data
-  return [
-    /* Example data for testing:
-    {
-      id: 'booking-123',
-      guestEmail: 'guest1@example.com',
-      guestName: 'John Doe',
-      startDate: new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      hasUploadedDocuments: false
+  try {
+    const response = await fetch(`${process.env.WORDPRESS_API_URL}/bookings/upcoming`, {
+      headers: {
+        'x-api-key': process.env.WORDPRESS_API_KEY || ''
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch upcoming bookings: ${response.status}`);
     }
-    */
-  ];
+    
+    const bookings = await response.json();
+    
+    // Check uploads directory to see which bookings already have documents
+    const processedBookings = await Promise.all(
+      bookings.map(async (booking: Booking) => {
+        // Here we would check if documents exist for this booking
+        // For now, assume no documents have been uploaded
+        const hasUploadedDocuments = await checkForExistingDocuments(booking.bookingId);
+        
+        return {
+          ...booking,
+          hasUploadedDocuments
+        };
+      })
+    );
+    
+    return processedBookings;
+  } catch (error) {
+    console.error('Error fetching upcoming bookings:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if documents have been uploaded for a booking
+ */
+async function checkForExistingDocuments(bookingId: string): Promise<boolean> {
+  try {
+    if (!process.env.WORDPRESS_API_URL || !process.env.WORDPRESS_API_KEY) {
+      console.warn('WordPress API configuration missing, defaulting to no documents');
+      return false;
+    }
+    
+    // Check WordPress API if documents exist for this booking
+    const response = await fetch(`${process.env.WORDPRESS_API_URL}/has-documents/${bookingId}`, {
+      headers: {
+        'x-api-key': process.env.WORDPRESS_API_KEY
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`Error checking documents: ${response.status}`);
+      return false;
+    }
+    
+    const data = await response.json();
+    return data.hasDocuments === true;
+  } catch (error) {
+    console.error(`Error checking documents for booking ${bookingId}:`, error);
+    return false;
+  }
 } 

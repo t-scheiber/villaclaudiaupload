@@ -121,6 +121,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Upload documents to WordPress
+    const wpUploadResult = await uploadToWordPress(bookingId, fileInfos);
+    
+    if (!wpUploadResult.success) {
+      console.error("WordPress upload failed:", wpUploadResult.error);
+      // Continue to email the documents even if WordPress upload fails
+    }
+
     // Send notification email to administrator
     await sendAdminNotification({
       bookingId,
@@ -143,6 +151,7 @@ export async function POST(request: NextRequest) {
       })),
       bookingId,
       guestName,
+      wordpressStorage: wpUploadResult.success,
       travelers: travelers
     });
   } catch (error) {
@@ -151,6 +160,67 @@ export async function POST(request: NextRequest) {
       { error: "Failed to upload files" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Upload documents to WordPress via the API
+ */
+async function uploadToWordPress(
+  bookingId: string, 
+  files: {
+    originalName: string;
+    arrayBuffer: ArrayBuffer;
+    size: number;
+    type: string;
+    travelerName: string;
+    documentType: string;
+    documentNumber: string;
+  }[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!process.env.WORDPRESS_API_URL || !process.env.WORDPRESS_API_KEY) {
+      throw new Error("WordPress API configuration missing");
+    }
+
+    const formData = new FormData();
+    formData.append('bookingId', bookingId);
+    
+    // Add each file to the form data
+    files.forEach((file, index) => {
+      const fileKey = `file_${index}`;
+      const fileBlob = new Blob([file.arrayBuffer], { type: file.type });
+      const fileObject = new File([fileBlob], file.originalName, { type: file.type });
+      
+      formData.append(fileKey, fileObject);
+      formData.append(`file_info_${fileKey}`, JSON.stringify({
+        travelerName: file.travelerName,
+        documentType: file.documentType,
+        documentNumber: file.documentNumber
+      }));
+    });
+    
+    const response = await fetch(`${process.env.WORDPRESS_API_URL}/upload-documents`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.WORDPRESS_API_KEY
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`WordPress API error (${response.status}): ${errorText}`);
+    }
+    
+    // Successful response
+    return { success: true };
+  } catch (error) {
+    console.error("Error uploading to WordPress:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Unknown error" 
+    };
   }
 }
 
@@ -246,7 +316,8 @@ async function sendAdminNotification({
           </table>
           
           <p style="margin-top: 20px;">
-            The uploaded documents are attached to this email. They are not stored on our servers for security reasons.
+            The uploaded documents are attached to this email and also securely stored in the WordPress admin system.
+            You can view them in the WordPress admin by editing the booking.
           </p>
           
           <p>This is an automated notification. Please do not reply to this email.</p>
