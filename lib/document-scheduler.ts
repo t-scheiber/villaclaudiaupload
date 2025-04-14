@@ -6,6 +6,7 @@ interface Booking {
   guestEmail: string;
   guestName: string;
   checkInDate: string;
+  checkOutDate?: string;
   hasUploadedDocuments: boolean;
   status: string;
 }
@@ -50,7 +51,8 @@ export async function processDocumentReminders() {
           booking.bookingId,
           booking.guestEmail, 
           booking.guestName,
-          new Date(booking.checkInDate)
+          new Date(booking.checkInDate),
+          booking.checkOutDate ? new Date(booking.checkOutDate) : undefined
         )
       )
     );
