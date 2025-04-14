@@ -23,6 +23,18 @@ class ZigZag_Restaurant_Posts {
         
         // Register Gutenberg block
         add_action('init', array($this, 'register_block'));
+        
+        // Load Divi module if Divi is active
+        add_action('divi_extensions_init', array($this, 'load_divi_module'));
+    }
+    
+    /**
+     * Load the Divi module
+     */
+    public function load_divi_module() {
+        if (class_exists('ET_Builder_Module')) {
+            require_once plugin_dir_path(__FILE__) . 'includes/divi-module.php';
+        }
     }
     
     /**
