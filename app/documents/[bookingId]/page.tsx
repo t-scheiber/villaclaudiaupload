@@ -25,7 +25,13 @@ function SearchParamsHandler({ onParamsLoaded }: { onParamsLoaded: (email: strin
 
 export default function DocumentUploadPage() {
   const params = useParams();
-  const bookingId = params.bookingId as string;
+  const secureBookingId = params.bookingId as string;
+  
+  // Extract the actual booking ID from the secure format
+  // The format is: bookingId + checkindate + checkoutdate (all dates in YYYYMMDD format)
+  // Example: "87020250511202505018" -> "870" is the booking ID
+  const bookingIdMatch = secureBookingId.match(/^(\d+?)(\d{8})(\d{8})?$/);
+  const bookingId = bookingIdMatch ? bookingIdMatch[1] : secureBookingId;
   
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
