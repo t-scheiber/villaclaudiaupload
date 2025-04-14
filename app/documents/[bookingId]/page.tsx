@@ -274,7 +274,7 @@ export default function DocumentUploadPage() {
         <>
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
             <p className="text-blue-800">
-              <strong>Booking Reference:</strong> {bookingId}
+              <strong>Booking Reference:</strong> {secureBookingId}
             </p>
             {email && (
               <p className="text-blue-800 mt-1">
