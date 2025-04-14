@@ -11,18 +11,30 @@ interface FileMetadata {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const bookingId = formData.get("bookingId") as string;
+    const secureBookingId = formData.get("bookingId") as string;
     const guestName = formData.get("guestName") as string;
     const email = formData.get("email") as string;
     const travelersJson = formData.get("travelers") as string;
     const travelers = travelersJson ? JSON.parse(travelersJson) : [];
     
-    if (!bookingId) {
+    if (!secureBookingId) {
       return NextResponse.json(
         { error: "Missing booking ID" },
         { status: 400 }
       );
     }
+
+    // Validate the secure booking ID format
+    const bookingIdMatch = secureBookingId.match(/^(\d+?)(\d{8})(\d{8})?$/);
+    if (!bookingIdMatch) {
+      return NextResponse.json(
+        { error: "Invalid booking ID format" },
+        { status: 400 }
+      );
+    }
+    
+    // Extract the actual booking ID for database lookup
+    const bookingId = bookingIdMatch[1];
 
     if (!guestName) {
       return NextResponse.json(
