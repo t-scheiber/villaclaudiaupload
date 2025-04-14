@@ -49,58 +49,87 @@ export function createDocumentUploadLink(bookingId: string, guestEmail: string) 
   return `${baseUrl}/documents/${encodedBookingId}?email=${encodedEmail}`;
 }
 
-// Function to send document upload request email
+/**
+ * Send document request email to guest
+ */
 export async function sendDocumentRequestEmail(
   bookingId: string,
   guestEmail: string,
   guestName: string,
-  stayStartDate: Date
-) {
-  const transporter = createEmailTransporter();
-  const uploadLink = createDocumentUploadLink(bookingId, guestEmail);
-  
-  const formattedDate = stayStartDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  
-  // Email content with styling
-  const emailContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #1e40af; color: white; padding: 20px; text-align: center;">
-        <h1 style="margin: 0;">Villa Claudia</h1>
-      </div>
-      <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
-        <p>Hello${guestName ? ` ${guestName}` : ""},</p>
-        <p>Thank you for booking your stay at Villa Claudia, starting on <strong>${formattedDate}</strong>!</p>
-        <p>For legal requirements, we need a copy of your passport or travel ID document for all guests.</p>
-        <p>Please click the button below to securely upload your documents:</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${uploadLink}" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Upload Documents</a>
-        </div>
-        <p>If you have any questions, please don't hesitate to contact us.</p>
-        <p>Best regards,<br>Villa Claudia Team</p>
-      </div>
-      <div style="background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #6b7280;">
-        <p>© ${new Date().getFullYear()} Villa Claudia. All rights reserved.</p>
-        <p><a href="https://villa-claudia.eu" style="color: #6b7280; text-decoration: underline;">villa-claudia.eu</a></p>
-      </div>
-    </div>
-  `;
-
+  checkInDate: Date,
+  checkOutDate?: Date
+): Promise<{ success: boolean; error?: string }> {
   try {
-    await transporter.sendMail({
-      from: emailConfig.from,
-      to: guestEmail,
-      subject: "Important: Upload Your Travel Documents - Villa Claudia",
-      html: emailContent,
+    const transporter = createEmailTransporter();
+    
+    // Format check-in date for URL (DDMMYYYY)
+    const checkInFormatted = checkInDate.toISOString().split('T')[0].replace(/-/g, '');
+    
+    // Format check-out date for URL (DDMMYYYY) if available
+    const checkOutFormatted = checkOutDate 
+      ? checkOutDate.toISOString().split('T')[0].replace(/-/g, '')
+      : '';
+    
+    // Create secure upload URL with combined ID + dates
+    const secureUploadId = `${bookingId}${checkInFormatted}${checkOutFormatted}`;
+    
+    // Check-in date formatted for display (e.g. May 15, 2025)
+    const checkInDisplay = checkInDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric', 
+      year: 'numeric'
     });
+    
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const uploadUrl = `${baseUrl}/documents/${secureUploadId}?email=${encodeURIComponent(guestEmail)}`;
+    
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || 'Villa Claudia <no-reply@villa-claudia.eu>',
+      to: guestEmail,
+      subject: 'Please Upload Your Travel Documents for Your Stay at Villa Claudia',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #1e40af; color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0;">Villa Claudia</h1>
+          </div>
+          <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
+            <p>Dear ${guestName},</p>
+            
+            <p>We hope you're looking forward to your upcoming stay at Villa Claudia starting on <strong>${checkInDisplay}</strong>.</p>
+            
+            <p>As required by Croatian law, we need to register all foreign guests with the authorities within 24 hours of arrival. To make your check-in process smoother, please upload your travel documents (passport or ID) before arrival.</p>
+            
+            <p style="margin: 30px 0; text-align: center;">
+              <a href="${uploadUrl}" style="background-color: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                Upload Your Documents
+              </a>
+            </p>
+            
+            <p><strong>Note:</strong> We need documents for all travelers, not just the person who made the booking.</p>
+            
+            <p>If you have any questions, please don't hesitate to contact us.</p>
+            
+            <p>Looking forward to welcoming you to Villa Claudia!</p>
+            
+            <p>Best regards,<br>Villa Claudia Team</p>
+          </div>
+          <div style="background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #6b7280;">
+            <p>© ${new Date().getFullYear()} Villa Claudia. All rights reserved.</p>
+            <p><a href="https://villa-claudia.eu" style="color: #6b7280; text-decoration: underline;">villa-claudia.eu</a></p>
+          </div>
+        </div>
+      `
+    };
+    
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Document request email sent:', info.messageId);
     
     return { success: true };
   } catch (error) {
-    console.error("Failed to send email:", error);
-    return { success: false, error };
+    console.error('Email error:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to send email' 
+    };
   }
 } 

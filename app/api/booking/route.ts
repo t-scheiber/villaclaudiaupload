@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
-    const bookingId = searchParams.get('id');
+    const secureBookingId = searchParams.get('id');
     
-    if (!bookingId) {
+    if (!secureBookingId) {
         return NextResponse.json({ error: 'Missing booking ID' }, { status: 400 });
     }
+    
+    // Extract the actual booking ID from the secure format
+    // The format is: bookingId + checkindate + checkoutdate (all dates in YYYYMMDD format)
+    const bookingIdMatch = secureBookingId.match(/^(\d+?)(\d{8})(\d{8})?$/);
+    const bookingId = bookingIdMatch ? bookingIdMatch[1] : secureBookingId;
     
     try {
         const wpApiUrl = `${process.env.WORDPRESS_API_URL}/booking/${bookingId}`;

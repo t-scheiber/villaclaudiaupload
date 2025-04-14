@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.0.6
+ * Version: 1.1.0
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -66,6 +66,13 @@ class Villa_Claudia_Docs {
             'callback' => array($this, 'handle_document_upload'),
             'permission_callback' => array($this, 'validate_api_key')
         ));
+        
+        // Simple ping endpoint to check if API is working
+        register_rest_route('villa-claudia/v1', '/ping', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'ping'),
+            'permission_callback' => array($this, 'validate_api_key')
+        ));
     }
     
     public function validate_api_key($request) {
@@ -77,10 +84,11 @@ class Villa_Claudia_Docs {
         $booking_id = $request->get_param('id');
         
         error_log('API Request for booking ID: ' . $booking_id);
-        error_log('Direct post lookup: ' . ($booking_post ? 'Found' : 'Not found'));
         
         // First try to get the booking as a post
         $booking_post = get_post($booking_id);
+        
+        error_log('Direct post lookup: ' . ($booking_post ? 'Found' : 'Not found'));
         
         if (!$booking_post || $booking_post->post_type !== 'mphb_booking') {
             // If not found directly, try to find it in MotoPress tables
@@ -107,14 +115,33 @@ class Villa_Claudia_Docs {
         $check_in_date = get_post_meta($booking_post->ID, 'mphb_check_in_date', true);
         $check_out_date = get_post_meta($booking_post->ID, 'mphb_check_out_date', true);
         $customer_email = get_post_meta($booking_post->ID, 'mphb_email', true);
+        
+        // Try multiple approaches to get guest name
         $guest_info = get_post_meta($booking_post->ID, 'mphb_guest_info', true);
+        $first_name = '';
+        $last_name = '';
+        
+        // Check if guest_info is an array with the expected keys
+        if (is_array($guest_info) && isset($guest_info['first_name'])) {
+            $first_name = $guest_info['first_name'];
+            $last_name = isset($guest_info['last_name']) ? $guest_info['last_name'] : '';
+        } else {
+            // Fallback to direct meta fields
+            $first_name = get_post_meta($booking_post->ID, 'mphb_first_name', true);
+            $last_name = get_post_meta($booking_post->ID, 'mphb_last_name', true);
+        }
+        
+        $guest_name = trim($first_name . ' ' . $last_name);
+        if (empty($guest_name)) {
+            $guest_name = 'Guest'; // Default if we can't find a name
+        }
         
         // Format response
         return array(
             'bookingId' => $booking_post->ID,
             'checkInDate' => $check_in_date,
             'checkOutDate' => $check_out_date,
-            'guestName' => trim($guest_info['first_name'] . ' ' . $guest_info['last_name']),
+            'guestName' => $guest_name,
             'guestEmail' => $customer_email,
             'status' => $booking_post->post_status
         );
@@ -210,10 +237,13 @@ class Villa_Claudia_Docs {
             </code>
             
             <h3>Testing the API</h3>
-            <p>You can test if the API is working by making a request to:</p>
+            <p>You can test if the API is working correctly by making a request to:</p>
+            <code><?php echo esc_url(get_rest_url(null, 'villa-claudia/v1/ping')); ?></code>
+            <p>Include the header: <code>x-api-key: <?php echo esc_attr(get_option('villa_claudia_api_key')); ?></code></p>
+            
+            <p>To test with a specific booking ID:</p>
             <code><?php echo esc_url(get_rest_url(null, 'villa-claudia/v1/booking/BOOKING_ID')); ?></code>
             <p>Replace BOOKING_ID with an actual booking ID from MotoPress.</p>
-            <p>Include the header: <code>x-api-key: <?php echo esc_attr(get_option('villa_claudia_api_key')); ?></code></p>
         </div>
         <?php
     }
@@ -407,6 +437,17 @@ class Villa_Claudia_Docs {
         // Output the file
         readfile($document_path);
         exit;
+    }
+    
+    // Simple ping endpoint to test API connectivity
+    public function ping() {
+        return array(
+            'status' => 'success',
+            'message' => 'API is working correctly',
+            'version' => '1.0.6',
+            'wordpress' => get_bloginfo('version'),
+            'timestamp' => current_time('mysql')
+        );
     }
 }
 
