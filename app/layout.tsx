@@ -30,20 +30,6 @@ export default function RootLayout({
                 priority
               />
             </Link>
-            <nav>
-              <ul className="flex space-x-4">
-                <li>
-                  <Link href="/" className="text-gray-700 hover:text-[#4a8b96]">
-                    Home
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/uploads" className="text-gray-700 hover:text-[#4a8b96]">
-                    Uploads
-                  </Link>
-                </li>
-              </ul>
-            </nav>
           </div>
         </header>
         <main>{children}</main>
