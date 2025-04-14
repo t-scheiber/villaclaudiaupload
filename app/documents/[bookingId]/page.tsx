@@ -4,7 +4,6 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Plus, Trash2 } from "lucide-react";
-import Image from "next/image";
 
 interface TravelerDocument {
   travelerName: string;
@@ -28,11 +27,8 @@ export default function DocumentUploadPage() {
   const params = useParams();
   const secureBookingId = params.bookingId as string;
   
-  // Extract the actual booking ID from the secure format
-  // The format is: bookingId + checkindate + checkoutdate (all dates in YYYYMMDD format)
-  // Example: "87020250511202505018" -> "870" is the booking ID
-  const bookingIdMatch = secureBookingId.match(/^(\d+?)(\d{8})(\d{8})?$/);
-  const bookingId = bookingIdMatch ? bookingIdMatch[1] : secureBookingId;
+  // The secure booking ID format combines the booking ID with check-in and check-out dates
+  // Format: bookingId + YYYYMMDD(checkin) + YYYYMMDD(checkout)
   
   const [guestName, setGuestName] = useState("");
   const [email, setEmail] = useState("");
@@ -56,7 +52,8 @@ export default function DocumentUploadPage() {
   useEffect(() => {
     const fetchBookingInfo = async () => {
       try {
-        const response = await fetch(`/api/booking?id=${encodeURIComponent(bookingId)}`);
+        // Use secureBookingId instead of bookingId for secure API access
+        const response = await fetch(`/api/booking?id=${encodeURIComponent(secureBookingId)}`);
         
         if (!response.ok) {
           throw new Error("Failed to fetch booking information");
@@ -93,7 +90,7 @@ export default function DocumentUploadPage() {
     };
     
     fetchBookingInfo();
-  }, [bookingId]);
+  }, [secureBookingId]);
 
   const handleAddTraveler = () => {
     if (travelers.length < 8) { // Limit to 8 travelers total
@@ -154,7 +151,7 @@ export default function DocumentUploadPage() {
     
     try {
       const formData = new FormData();
-      formData.append("bookingId", bookingId);
+      formData.append("bookingId", secureBookingId);
       formData.append("guestName", guestName);
       
       if (email) {
@@ -231,13 +228,6 @@ export default function DocumentUploadPage() {
   return (
     <div className="container mx-auto py-10">
       <div className="text-center mb-8">
-        <Image 
-          src="/Logo.png" 
-          alt="Villa Claudia" 
-          width={200} 
-          height={100} 
-          className="mx-auto mb-4" 
-        />
         <h1 className="text-3xl font-bold">Upload Your Travel Documents</h1>
       </div>
       
