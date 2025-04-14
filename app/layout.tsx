@@ -38,8 +38,8 @@ export default function RootLayout({
                   </Link>
                 </li>
                 <li>
-                  <Link href="/documents" className="text-gray-700 hover:text-[#4a8b96]">
-                    Documents
+                  <Link href="/uploads" className="text-gray-700 hover:text-[#4a8b96]">
+                    Uploads
                   </Link>
                 </li>
               </ul>
