@@ -11,7 +11,13 @@ export async function GET(request: NextRequest) {
     // Extract the actual booking ID from the secure format
     // The format is: bookingId + checkindate + checkoutdate (all dates in YYYYMMDD format)
     const bookingIdMatch = secureBookingId.match(/^(\d+?)(\d{8})(\d{8})?$/);
-    const bookingId = bookingIdMatch ? bookingIdMatch[1] : secureBookingId;
+    
+    // If it doesn't match the secure format pattern, reject the request
+    if (!bookingIdMatch) {
+        return NextResponse.json({ error: 'Invalid booking ID format' }, { status: 400 });
+    }
+    
+    const bookingId = bookingIdMatch[1];
     
     try {
         const wpApiUrl = `${process.env.WORDPRESS_API_URL}/booking/${bookingId}`;
