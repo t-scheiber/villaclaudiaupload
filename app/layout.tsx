@@ -19,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <header className="bg-white p-4 shadow-sm">
+        <header className="bg-[#fff4d8] p-4 shadow-sm border-b border-amber-300">
           <div className="container mx-auto flex justify-between items-center">
             <Link href="/" className="flex items-center">
               <Image 
@@ -33,7 +33,7 @@ export default function RootLayout({
           </div>
         </header>
         <main>{children}</main>
-        <footer className="bg-gray-100 p-4 text-center text-gray-600 text-sm mt-20">
+        <footer className="bg-[#fff4d8] p-4 text-center text-amber-800 text-sm mt-20 border-t border-amber-300">
           <p>© {new Date().getFullYear()} Villa Claudia. All rights reserved.</p>
           <p className="mt-1">Your documents are securely processed and stored.</p>
         </footer>
