@@ -12,7 +12,7 @@ export default function DocumentsLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#fff4d8]">
       <main>{children}</main>
     </div>
   );
