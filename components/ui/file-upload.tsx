@@ -135,7 +135,7 @@ export function FileUpload({
       <div 
         className={cn(
           "border-2 border-dashed rounded-lg p-6 transition-colors",
-          isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-blue-400",
+          isDragging ? "border-amber-500 bg-[#fff4d8]" : "border-amber-300 hover:border-amber-400",
         )}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -143,13 +143,13 @@ export function FileUpload({
         onDrop={handleDrop}
       >
         <div className="text-center">
-          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+          <Upload className="mx-auto h-12 w-12 text-amber-600" />
           <div className="mt-4">
-            <label htmlFor="file-upload" className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium">
+            <label htmlFor="file-upload" className="cursor-pointer text-amber-700 hover:text-amber-800 font-medium">
               Click to upload
             </label>{" "}
-            <span className="text-gray-500">or drag and drop</span>
-            <p className="text-xs text-gray-500 mt-1">
+            <span className="text-amber-600">or drag and drop</span>
+            <p className="text-xs text-amber-600 mt-1">
               {acceptedFileTypes.map(type => type.split("/")[1]).join(", ")} up to {maxSizeInMB}MB (max {maxFiles} files)
             </p>
             <input
@@ -168,15 +168,15 @@ export function FileUpload({
       {files.length > 0 && (
         <div className="mt-4 space-y-2">
           {files.map((file, index) => (
-            <div key={index} className="flex items-center p-2 bg-gray-50 border border-gray-200 rounded">
-              <File size={20} className="text-gray-500 mr-2" />
+            <div key={index} className="flex items-center p-2 bg-[#fff4d8] border border-amber-300 rounded">
+              <File size={20} className="text-amber-700 mr-2" />
               <span className="flex-1 truncate">{file.name}</span>
-              <span className="text-xs text-gray-500 mx-2">
+              <span className="text-xs text-amber-700 mx-2">
                 {(file.size / 1024 / 1024).toFixed(2)} MB
               </span>
               <button 
                 onClick={() => removeFile(index)}
-                className="p-1 text-gray-500 hover:text-red-500"
+                className="p-1 text-amber-500 hover:text-red-500"
               >
                 <X size={16} />
               </button>
