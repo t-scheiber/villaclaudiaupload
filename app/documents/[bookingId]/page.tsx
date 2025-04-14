@@ -89,7 +89,7 @@ export default function DocumentUploadPage() {
   }, [bookingId]);
 
   const handleAddTraveler = () => {
-    if (travelers.length < 9) { // Limit to 9 travelers (1 main + 8 additional)
+    if (travelers.length < 8) { // Limit to 8 travelers total
       setTravelers([...travelers, { travelerName: "", files: [], documentType: "passport", documentNumber: "" }]);
     }
   };
@@ -228,14 +228,16 @@ export default function DocumentUploadPage() {
       <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6">
         <h3 className="font-semibold text-amber-800 mb-2">Registration Requirements for Croatia</h3>
         <p className="text-sm text-amber-700">
-          By law, all foreigners must be registered with local authorities in Croatia within 24 hours of arrival. Acceptable documents:
+          By law, all foreigners must be registered with local authorities in Croatia within 24 hours of arrival. 
+          As your host, we are required to collect and submit these documents for each traveler:
         </p>
         <ul className="list-disc list-inside text-sm text-amber-700 mt-2">
           <li><strong>EU Citizens:</strong> Valid National ID Card or Passport</li>
           <li><strong>Non-EU Citizens:</strong> Valid Passport</li>
         </ul>
         <p className="text-sm text-amber-700 mt-2">
-          Please ensure you upload clear, complete scans of your documents showing all relevant information.
+          Please upload documents for all travelers (regardless of the number listed in your original booking).
+          We need information for every person who will be staying at the accommodation.
         </p>
       </div>
       
@@ -416,15 +418,15 @@ export default function DocumentUploadPage() {
                 ))}
               </div>
               
-              {travelers.length < 9 && (
+              {travelers.length < 8 && (
                 <button
                   type="button"
                   onClick={handleAddTraveler}
                   className="mt-4 flex items-center text-blue-600 hover:text-blue-800"
-                  disabled={travelers.length >= 9}
+                  disabled={travelers.length >= 8}
                 >
                   <Plus size={16} className="mr-1" />
-                  Add Another Traveler ({travelers.length}/9)
+                  Add Another Traveler ({travelers.length}/8)
                 </button>
               )}
             </div>

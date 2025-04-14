@@ -7,6 +7,7 @@ interface Booking {
   guestName: string;
   checkInDate: string;
   hasUploadedDocuments: boolean;
+  status: string;
 }
 
 /**
@@ -24,6 +25,11 @@ export async function processDocumentReminders() {
     const bookingsNeedingReminders = upcomingBookings.filter(booking => {
       // Skip if documents already uploaded
       if (booking.hasUploadedDocuments) {
+        return false;
+      }
+      
+      // Skip if booking status is not confirmed
+      if (booking.status !== 'confirmed') {
         return false;
       }
       
