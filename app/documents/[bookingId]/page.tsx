@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Plus, Trash2 } from "lucide-react";
+import Image from "next/image";
 
 interface TravelerDocument {
   travelerName: string;
@@ -229,7 +230,16 @@ export default function DocumentUploadPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">Upload Your Travel Documents</h1>
+      <div className="text-center mb-8">
+        <Image 
+          src="/Logo.png" 
+          alt="Villa Claudia" 
+          width={200} 
+          height={100} 
+          className="mx-auto mb-4" 
+        />
+        <h1 className="text-3xl font-bold">Upload Your Travel Documents</h1>
+      </div>
       
       <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6">
         <h3 className="font-semibold text-amber-800 mb-2">Registration Requirements for Croatia</h3>
@@ -465,7 +475,7 @@ export default function DocumentUploadPage() {
                 className={`px-6 py-2 rounded-md text-white font-medium 
                   ${isSubmitting || getTotalFilesCount() === 0
                     ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700"
+                    : "bg-[#4a8b96] hover:bg-[#3d7580]"
                   }`}
               >
                 {isSubmitting ? "Uploading..." : "Submit Documents"}
