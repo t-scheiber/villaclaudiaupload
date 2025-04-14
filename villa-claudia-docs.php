@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -107,22 +107,16 @@ class Villa_Claudia_Docs {
         $check_in_date = get_post_meta($booking_post->ID, 'mphb_check_in_date', true);
         $check_out_date = get_post_meta($booking_post->ID, 'mphb_check_out_date', true);
         $customer_email = get_post_meta($booking_post->ID, 'mphb_email', true);
-        $customer_first_name = get_post_meta($booking_post->ID, 'mphb_first_name', true);
-        $customer_last_name = get_post_meta($booking_post->ID, 'mphb_last_name', true);
-        $adults = (int)get_post_meta($booking_post->ID, 'mphb_adults', true) ?: 0;
-        $children = (int)get_post_meta($booking_post->ID, 'mphb_children', true) ?: 0;
+        $guest_info = get_post_meta($booking_post->ID, 'mphb_guest_info', true);
         
         // Format response
         return array(
             'bookingId' => $booking_post->ID,
             'checkInDate' => $check_in_date,
             'checkOutDate' => $check_out_date,
-            'guestName' => trim($customer_first_name . ' ' . $customer_last_name),
+            'guestName' => trim($guest_info['first_name'] . ' ' . $guest_info['last_name']),
             'guestEmail' => $customer_email,
-            'status' => $booking_post->post_status,
-            'adults' => $adults,
-            'children' => $children,
-            'totalRooms' => 1  // Set based on your data structure
+            'status' => $booking_post->post_status
         );
     }
     
@@ -139,7 +133,7 @@ class Villa_Claudia_Docs {
         $query = $wpdb->prepare(
             "SELECT ID FROM {$wpdb->posts} WHERE 
             post_type = 'mphb_booking' AND 
-            post_status IN ('confirmed', 'pending') AND 
+            post_status = 'confirmed' AND 
             ID IN (
                 SELECT post_id FROM {$wpdb->postmeta} 
                 WHERE meta_key IN ('mphb_check_in_date', '_mphb_check_in_date') 
