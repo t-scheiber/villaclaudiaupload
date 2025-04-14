@@ -41,12 +41,12 @@ export function createEmailTransporter() {
 }
 
 // Create magic link for document upload
-export function createDocumentUploadLink(bookingId: string, guestEmail: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-  const encodedEmail = encodeURIComponent(guestEmail);
+export function createDocumentUploadLink(bookingId: string, guestEmail: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const encodedBookingId = encodeURIComponent(bookingId);
+  const encodedEmail = encodeURIComponent(guestEmail);
   
-  return `${baseUrl}/documents/${encodedBookingId}?email=${encodedEmail}`;
+  return `${baseUrl}/uploads/${encodedBookingId}?email=${encodedEmail}`;
 }
 
 /**
@@ -81,7 +81,7 @@ export async function sendDocumentRequestEmail(
     });
     
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const uploadUrl = `${baseUrl}/documents/${secureUploadId}?email=${encodeURIComponent(guestEmail)}`;
+    const uploadUrl = `${baseUrl}/uploads/${secureUploadId}?email=${encodeURIComponent(guestEmail)}`;
     
     const mailOptions = {
       from: process.env.EMAIL_FROM || 'Villa Claudia <no-reply@villa-claudia.eu>',
