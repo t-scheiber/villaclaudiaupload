@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Restaurant Posts Zigzag
  * Description: Displays restaurant posts in a zigzag layout for both default WordPress and Divi editor
- * Version: 1.4.0
+ * Version: 1.4.3
  * Author: Thomas Scheiber
  * Text Domain: restaurant-posts-zigzag
  */
@@ -32,26 +32,45 @@ function rpz_enqueue_scripts() {
     overflow: hidden;
 }
 .rpz-item-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
 }
 /* Left layout (image left, content right) */
 .rpz-item-left .rpz-item-inner {
-    flex-direction: row;
+    flex-direction: row !important;
 }
 /* Right layout (content left, image right) */
 .rpz-item-right .rpz-item-inner {
-    flex-direction: row-reverse;
+    flex-direction: row-reverse !important;
 }
 .rpz-image {
-    flex: 0 0 48%;
-    max-width: 48%;
+    flex: 0 0 48% !important;
+    max-width: 48% !important;
     overflow: hidden;
     border-radius: 8px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rpz-no-image {
+    width: 100%;
+    height: 100%;
+    min-height: 200px;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rpz-no-image:after {
+    content: "No Image";
+    color: #999;
+    font-style: italic;
 }
 .rpz-image:hover {
     transform: translateY(-5px);
@@ -67,8 +86,8 @@ function rpz_enqueue_scripts() {
     transform: scale(1.05);
 }
 .rpz-content {
-    flex: 0 0 48%;
-    max-width: 48%;
+    flex: 0 0 48% !important;
+    max-width: 48% !important;
     padding: 20px;
 }
 .rpz-title {
@@ -106,26 +125,40 @@ function rpz_enqueue_scripts() {
     content: "";
     margin-top: 10px;
 }
+/* Divi-specific overrides */
+.et_pb_module .rpz-item-inner {
+    display: flex !important;
+    flex-wrap: wrap !important;
+}
+.et_pb_module .rpz-item-left .rpz-item-inner {
+    flex-direction: row !important;
+}
+.et_pb_module .rpz-item-right .rpz-item-inner {
+    flex-direction: row-reverse !important;
+}
+.et_pb_module .rpz-image,
+.et_pb_module .rpz-content {
+    width: 48% !important;
+    max-width: 48% !important;
+    float: none !important;
+}
 /* Responsive styles */
 @media only screen and (max-width: 768px) {
-    .rpz-item-inner {
+    .rpz-item-inner,
+    .et_pb_module .rpz-item-inner {
         flex-direction: column !important;
     }
     .rpz-image,
-    .rpz-content {
-        flex: 0 0 100%;
-        max-width: 100%;
+    .rpz-content,
+    .et_pb_module .rpz-image,
+    .et_pb_module .rpz-content {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
     }
-    .rpz-image {
+    .rpz-image,
+    .et_pb_module .rpz-image {
         margin-bottom: 20px;
-    }
-    .rpz-item-right .rpz-image {
-        margin-top: 20px;
-        margin-bottom: 0;
-        order: 2;
-    }
-    .rpz-item-right .rpz-content {
-        order: 1;
     }
 }';
 
@@ -358,25 +391,24 @@ function rpz_restaurant_zigzag_shortcode($atts) {
             $output .= '<div class="rpz-zigzag-item ' . $layout_class . '">';
             $output .= '<div class="rpz-item-inner">';
             
-            if ($count % 2 == 0) {
-                // Even items: Image on left, content on right
-                if ($post_image) {
-                    $output .= '<div class="rpz-image"><a href="' . esc_url($post_link) . '"><img src="' . esc_url($post_image) . '" alt="' . esc_attr($post_title) . '"></a></div>';
-                }
-                $output .= '<div class="rpz-content">';
-                $output .= '<h3 class="rpz-title"><a href="' . esc_url($post_link) . '">' . esc_html($post_title) . '</a></h3>';
-                $output .= '<div class="rpz-excerpt">' . $post_content . '</div>';
-                $output .= '</div>'; // End content
+            // Create image HTML
+            $image_html = '<div class="rpz-image">';
+            if ($post_image) {
+                $image_html .= '<a href="' . esc_url($post_link) . '"><img src="' . esc_url($post_image) . '" alt="' . esc_attr($post_title) . '"></a>';
             } else {
-                // Odd items: Content on left, image on right
-                $output .= '<div class="rpz-content">';
-                $output .= '<h3 class="rpz-title"><a href="' . esc_url($post_link) . '">' . esc_html($post_title) . '</a></h3>';
-                $output .= '<div class="rpz-excerpt">' . $post_content . '</div>';
-                $output .= '</div>'; // End content
-                if ($post_image) {
-                    $output .= '<div class="rpz-image"><a href="' . esc_url($post_link) . '"><img src="' . esc_url($post_image) . '" alt="' . esc_attr($post_title) . '"></a></div>';
-                }
+                // Placeholder if no image
+                $image_html .= '<div class="rpz-no-image"></div>';
             }
+            $image_html .= '</div>';
+            
+            // Create content HTML
+            $content_html = '<div class="rpz-content">';
+            $content_html .= '<h3 class="rpz-title"><a href="' . esc_url($post_link) . '">' . esc_html($post_title) . '</a></h3>';
+            $content_html .= '<div class="rpz-excerpt">' . $post_content . '</div>';
+            $content_html .= '</div>';
+            
+            // Always add both parts - they will be ordered by CSS based on the item class
+            $output .= $image_html . $content_html;
             
             $output .= '</div>'; // End item-inner
             $output .= '</div>'; // End zigzag-item
@@ -409,6 +441,43 @@ function rpz_initialize_divi_extension() {
                     'posts_count' => array('6', 'add_default_setting'),
                     'category' => array('', 'add_default_setting'),
                 );
+                
+                // Add custom CSS to fix Divi conflicts
+                add_action('wp_footer', array($this, 'add_custom_divi_fixes'));
+            }
+            
+            // Add custom CSS fixes for Divi
+            function add_custom_divi_fixes() {
+                if (et_core_is_fb_enabled()) {
+                    echo '<style>
+                    .et-fb-app-frame .rpz-item-inner {
+                        display: flex !important;
+                        flex-wrap: wrap !important;
+                    }
+                    .et-fb-app-frame .rpz-item-left .rpz-item-inner {
+                        flex-direction: row !important;
+                    }
+                    .et-fb-app-frame .rpz-item-right .rpz-item-inner {
+                        flex-direction: row-reverse !important;
+                    }
+                    .et-fb-app-frame .rpz-image,
+                    .et-fb-app-frame .rpz-content {
+                        width: 48% !important;
+                        max-width: 48% !important;
+                        float: none !important;
+                    }
+                    @media only screen and (max-width: 768px) {
+                        .et-fb-app-frame .rpz-item-inner {
+                            flex-direction: column !important;
+                        }
+                        .et-fb-app-frame .rpz-image,
+                        .et-fb-app-frame .rpz-content {
+                            width: 100% !important;
+                            max-width: 100% !important;
+                        }
+                    }
+                    </style>';
+                }
             }
             
             function get_fields() {
