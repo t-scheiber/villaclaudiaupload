@@ -27,7 +27,7 @@ async function validateBooking(secureBookingId: string) {
       console.log('Check-out date:', bookingIdMatch[3]);
     }
     
-    const apiUrl = `/api/booking?id=${bookingId}`;
+    const apiUrl = `${process.env.WORDPRESS_API_URL}/booking/${bookingId}`;
     console.log('Calling API at:', apiUrl);
     
     // Call the API endpoint with just the booking ID
@@ -35,6 +35,7 @@ async function validateBooking(secureBookingId: string) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': process.env.WORDPRESS_API_KEY || ''
       },
       cache: 'no-store'
     });
@@ -83,6 +84,12 @@ export default async function BookingUploadPage({
     
     console.log('Booking validation successful, rendering page');
     
+    // Add booking reference to the booking data
+    const bookingDataWithReference = {
+      ...bookingData,
+      bookingReference: `VC-${bookingData.bookingId}` // Format the booking reference as needed
+    };
+    
     return (
       <div className="container mx-auto py-20">
         <div className="text-center max-w-3xl mx-auto">
@@ -91,8 +98,9 @@ export default async function BookingUploadPage({
           
           <DocumentUploadForm 
             bookingId={secureBookingId} 
-            bookingData={bookingData}
+            bookingData={bookingDataWithReference}
             email={email} 
+            maxTravelers={8}
           />
         </div>
       </div>

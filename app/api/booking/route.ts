@@ -18,6 +18,13 @@ export async function GET(request: NextRequest) {
     }
     
     const bookingId = bookingIdMatch[1];
+
+    console.log('Booking ID:', bookingId);
+    console.log('Secure Booking ID:', secureBookingId);
+    console.log('Booking ID Match:', bookingIdMatch);
+    console.log('WordPress API URL:', `${process.env.WORDPRESS_API_URL}/booking/${bookingId}`);
+    console.log('WordPress API Key:', process.env.WORDPRESS_API_KEY);
+    
     
     try {
         const wpApiUrl = `${process.env.WORDPRESS_API_URL}/booking/${bookingId}`;
