@@ -128,7 +128,7 @@ export default function DocumentUploadForm({
     }
     
     if (travelers.some(t => !t.name)) {
-      setSubmitError("Please enter names for all travelers");
+      setSubmitError("Please enter names for all guests");
       return;
     }
     
@@ -217,13 +217,13 @@ export default function DocumentUploadForm({
         
         <div className="mb-6">
           <label className="block mb-2 font-medium">
-            Traveler Information <span className="text-red-500">*</span>
+            Guest Information <span className="text-red-500">*</span>
           </label>
           
           {travelers.map((traveler, index) => (
             <div key={index} className="mb-4 p-4 border border-gray-200 rounded">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium">Traveler {index + 1}</h3>
+                <h3 className="font-medium">Guest {index + 1}</h3>
                 {travelers.length > 1 && (
                   <button 
                     type="button"
@@ -319,7 +319,7 @@ export default function DocumentUploadForm({
               onClick={addTraveler}
               className="mt-2 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
             >
-              + Add Another Traveler
+              + Add Another Guest
             </button>
           )}
         </div>
@@ -351,7 +351,7 @@ export default function DocumentUploadForm({
             maxSizeInMB={10}
           />
           <p className="mt-2 text-sm text-gray-500">
-            Please upload scans or photos of passports or ID cards for all travelers
+            Please upload scans or photos of passports or ID cards for all guests
           </p>
         </div>
         
