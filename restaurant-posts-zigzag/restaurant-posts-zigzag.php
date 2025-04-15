@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Restaurant Posts Zigzag
  * Description: Displays restaurant posts in a zigzag layout for both default WordPress and Divi editor
- * Version: 1.3.3
+ * Version: 1.4.0
  * Author: Thomas Scheiber
  * Text Domain: restaurant-posts-zigzag
  */
@@ -35,6 +35,7 @@ function rpz_enqueue_scripts() {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
 }
 /* Left layout (image left, content right) */
 .rpz-item-left .rpz-item-inner {
@@ -355,10 +356,10 @@ function rpz_restaurant_zigzag_shortcode($atts) {
             $layout_class = ($count % 2 == 0) ? 'rpz-item-left' : 'rpz-item-right';
             
             $output .= '<div class="rpz-zigzag-item ' . $layout_class . '">';
+            $output .= '<div class="rpz-item-inner">';
             
             if ($count % 2 == 0) {
-                // Left alignment (image left, text right)
-                $output .= '<div class="rpz-item-inner">';
+                // Even items: Image on left, content on right
                 if ($post_image) {
                     $output .= '<div class="rpz-image"><a href="' . esc_url($post_link) . '"><img src="' . esc_url($post_image) . '" alt="' . esc_attr($post_title) . '"></a></div>';
                 }
@@ -366,10 +367,8 @@ function rpz_restaurant_zigzag_shortcode($atts) {
                 $output .= '<h3 class="rpz-title"><a href="' . esc_url($post_link) . '">' . esc_html($post_title) . '</a></h3>';
                 $output .= '<div class="rpz-excerpt">' . $post_content . '</div>';
                 $output .= '</div>'; // End content
-                $output .= '</div>'; // End item-inner
             } else {
-                // Right alignment (text left, image right)
-                $output .= '<div class="rpz-item-inner">';
+                // Odd items: Content on left, image on right
                 $output .= '<div class="rpz-content">';
                 $output .= '<h3 class="rpz-title"><a href="' . esc_url($post_link) . '">' . esc_html($post_title) . '</a></h3>';
                 $output .= '<div class="rpz-excerpt">' . $post_content . '</div>';
@@ -377,9 +376,9 @@ function rpz_restaurant_zigzag_shortcode($atts) {
                 if ($post_image) {
                     $output .= '<div class="rpz-image"><a href="' . esc_url($post_link) . '"><img src="' . esc_url($post_image) . '" alt="' . esc_attr($post_title) . '"></a></div>';
                 }
-                $output .= '</div>'; // End item-inner
             }
             
+            $output .= '</div>'; // End item-inner
             $output .= '</div>'; // End zigzag-item
             $count++;
         }
