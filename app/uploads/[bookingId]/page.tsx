@@ -35,11 +35,11 @@ export default async function BookingUploadPage({
   searchParams,
 }: {
   params: Promise<{ bookingId: string }>,
-  searchParams: { email?: string }
+  searchParams: Promise<{ email?: string }>
 }) {
-  // Await the params Promise to get the actual values
+  // Await both params and searchParams Promises
   const { bookingId } = await params;
-  const email = searchParams.email || '';
+  const { email = '' } = await searchParams;
   
   // Validate the booking
   const bookingData = await validateBooking(bookingId);
