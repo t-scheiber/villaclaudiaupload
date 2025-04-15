@@ -34,10 +34,11 @@ export default async function BookingUploadPage({
   params,
   searchParams,
 }: {
-  params: { bookingId: string },
+  params: Promise<{ bookingId: string }>,
   searchParams: { email?: string }
 }) {
-  const { bookingId } = params;
+  // Await the params Promise to get the actual values
+  const { bookingId } = await params;
   const email = searchParams.email || '';
   
   // Validate the booking
