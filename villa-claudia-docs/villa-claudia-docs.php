@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.2.0
+ * Version: 1.4.0
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -34,6 +34,9 @@ class Villa_Claudia_Docs {
         
         // Add handler for updating document status
         add_action('admin_init', array($this, 'handle_document_status_update'));
+        
+        // Add handler for test email
+        add_action('admin_init', array($this, 'handle_test_email'));
     }
     
     public function init() {
@@ -45,10 +48,42 @@ class Villa_Claudia_Docs {
         }
     }
     
+    /**
+     * Get or generate a secure booking ID for a booking
+     */
+    private function get_secure_booking_id($booking_id) {
+        $secure_id = get_post_meta($booking_id, 'villa_claudia_secure_id', true);
+        
+        if (empty($secure_id)) {
+            // Get booking details
+            $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
+            $check_out_date = get_post_meta($booking_id, 'mphb_check_out_date', true);
+            
+            // Format dates (remove hyphens)
+            $check_in_formatted = str_replace('-', '', $check_in_date);
+            $check_out_formatted = str_replace('-', '', $check_out_date);
+            
+            // Concatenate booking ID, check-in date, and check-out date
+            $secure_id = $booking_id . $check_in_formatted . $check_out_formatted;
+            
+            // Store the secure ID
+            update_post_meta($booking_id, 'villa_claudia_secure_id', $secure_id);
+        }
+        
+        return $secure_id;
+    }
+    
     public function register_api_endpoints() {
         register_rest_route('villa-claudia/v1', '/booking/(?P<id>\w+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_booking_data'),
+            'permission_callback' => array($this, 'validate_api_key')
+        ));
+        
+        // Add endpoint to get booking by secure ID
+        register_rest_route('villa-claudia/v1', '/secure-booking/(?P<secure_id>\w+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_booking_by_secure_id'),
             'permission_callback' => array($this, 'validate_api_key')
         ));
         
@@ -258,6 +293,44 @@ class Villa_Claudia_Docs {
             <p>To test with a specific booking ID:</p>
             <code><?php echo esc_url(get_rest_url(null, 'villa-claudia/v1/booking/BOOKING_ID')); ?></code>
             <p>Replace BOOKING_ID with an actual booking ID from MotoPress.</p>
+            
+            <hr>
+            
+            <h3>Send Test Email</h3>
+            <p>Send a test email with the document upload link for a specific booking:</p>
+            
+            <?php
+            // Display success/error messages
+            if (isset($_GET['email_sent']) && $_GET['email_sent'] === 'success') {
+                echo '<div class="notice notice-success is-dismissible"><p>Test email sent successfully!</p></div>';
+            } elseif (isset($_GET['email_sent']) && $_GET['email_sent'] === 'error') {
+                echo '<div class="notice notice-error is-dismissible"><p>Error sending test email. Please check the booking ID and recipient email.</p></div>';
+            }
+            ?>
+            
+            <form method="post" action="">
+                <?php wp_nonce_field('villa_claudia_test_email', 'villa_claudia_test_email_nonce'); ?>
+                <input type="hidden" name="action" value="villa_claudia_test_email">
+                
+                <table class="form-table">
+                    <tr valign="top">
+                        <th scope="row">Booking ID</th>
+                        <td>
+                            <input type="text" name="booking_id" required style="width: 150px;" />
+                            <p class="description">Enter the booking ID you want to test.</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Email Recipient</th>
+                        <td>
+                            <input type="email" name="recipient_email" required style="width: 320px;" />
+                            <p class="description">Enter the email address to receive the test link.</p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <?php submit_button('Send Test Email', 'secondary'); ?>
+            </form>
         </div>
         <?php
     }
@@ -288,7 +361,6 @@ class Villa_Claudia_Docs {
         echo '<th>Document Number</th>';
         echo '<th>Filename</th>';
         echo '<th>Uploaded</th>';
-        echo '<th>Actions</th>';
         echo '</tr></thead>';
         echo '<tbody>';
         
@@ -299,9 +371,6 @@ class Villa_Claudia_Docs {
             echo '<td>' . esc_html($doc['document_number']) . '</td>';
             echo '<td>' . esc_html($doc['original_name']) . '</td>';
             echo '<td>' . esc_html($doc['uploaded_at']) . '</td>';
-            echo '<td>';
-            echo '<a href="' . admin_url('admin-ajax.php?action=villa_claudia_view_document&document_id=' . $doc['filename'] . '&booking_id=' . $post->ID . '&_wpnonce=' . wp_create_nonce('view_document')) . '" target="_blank">View</a>';
-            echo '</td>';
             echo '</tr>';
         }
         
@@ -524,6 +593,7 @@ class Villa_Claudia_Docs {
                         <th scope="col" class="manage-column">Document Number</th>
                         <th scope="col" class="manage-column">Uploaded</th>
                         <th scope="col" class="manage-column">Status</th>
+                        <th scope="col" class="manage-column">Booking URL</th>
                         <th scope="col" class="manage-column">Actions</th>
                     </tr>
                 </thead>
@@ -588,6 +658,15 @@ class Villa_Claudia_Docs {
                                     <span style="color: <?php echo $status_color; ?>; font-weight: bold;">
                                         <?php echo ucfirst($doc_status); ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <?php 
+                                    $secure_id = $this->get_secure_booking_id($booking_id);
+                                    
+                                    // Use the documents subdomain for the booking URL
+                                    $upload_url = 'https://documents.villa-claudia.eu/' . $secure_id;
+                                    echo '<a href="#" onclick="navigator.clipboard.writeText(\'' . $upload_url . '\');alert(\'URL copied!\');return false;" title="Click to copy">' . $upload_url . '</a>';
+                                    ?>
                                 </td>
                                 <td>
                                     <a href="<?php echo admin_url('admin-ajax.php?action=villa_claudia_view_document&document_id=' . urlencode($document['filename']) . '&booking_id=' . $booking_id . '&_wpnonce=' . wp_create_nonce('view_document')); ?>" class="button button-small" target="_blank">View</a>
@@ -717,6 +796,113 @@ class Villa_Claudia_Docs {
             
             // Redirect back to the document list
             wp_redirect(admin_url('admin.php?page=document-uploads'));
+            exit;
+        }
+    }
+    
+    /**
+     * Get booking data by secure ID
+     */
+    public function get_booking_by_secure_id($request) {
+        $secure_id = $request->get_param('secure_id');
+        
+        if (empty($secure_id)) {
+            return new WP_Error('no_id', 'Secure ID is required', array('status' => 400));
+        }
+        
+        // Find booking with this secure ID
+        global $wpdb;
+        $booking_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT post_id FROM {$wpdb->postmeta} 
+             WHERE meta_key = 'villa_claudia_secure_id' 
+             AND meta_value = %s",
+            $secure_id
+        ));
+        
+        if (!$booking_id) {
+            return new WP_Error('not_found', 'Booking not found', array('status' => 404));
+        }
+        
+        // Create a fake request object to reuse the get_booking_data method
+        $request = new WP_REST_Request('GET', '/villa-claudia/v1/booking/' . $booking_id);
+        $request->set_param('id', $booking_id);
+        
+        return $this->get_booking_data($request);
+    }
+    
+    /**
+     * Handle sending test email with document upload link
+     */
+    public function handle_test_email() {
+        if (isset($_POST['action']) && $_POST['action'] === 'villa_claudia_test_email') {
+            // Verify nonce
+            if (!isset($_POST['villa_claudia_test_email_nonce']) || !wp_verify_nonce($_POST['villa_claudia_test_email_nonce'], 'villa_claudia_test_email')) {
+                wp_die('Security check failed');
+            }
+            
+            // Check if user has permission
+            if (!current_user_can('manage_options')) {
+                wp_die('You do not have permission to send test emails');
+            }
+            
+            $booking_id = isset($_POST['booking_id']) ? intval($_POST['booking_id']) : 0;
+            $recipient_email = isset($_POST['recipient_email']) ? sanitize_email($_POST['recipient_email']) : '';
+            
+            if (empty($booking_id) || empty($recipient_email)) {
+                wp_redirect(admin_url('options-general.php?page=villa-claudia-docs&email_sent=error'));
+                exit;
+            }
+            
+            // Get booking info
+            $booking_post = get_post($booking_id);
+            if (!$booking_post || $booking_post->post_type !== 'mphb_booking') {
+                wp_redirect(admin_url('options-general.php?page=villa-claudia-docs&email_sent=error'));
+                exit;
+            }
+            
+            // Get guest info
+            $guest_info = get_post_meta($booking_id, 'mphb_guest_info', true);
+            $first_name = '';
+            $last_name = '';
+            
+            if (is_array($guest_info) && isset($guest_info['first_name'])) {
+                $first_name = $guest_info['first_name'];
+                $last_name = isset($guest_info['last_name']) ? $guest_info['last_name'] : '';
+            } else {
+                $first_name = get_post_meta($booking_id, 'mphb_first_name', true);
+                $last_name = get_post_meta($booking_id, 'mphb_last_name', true);
+            }
+            
+            $guest_name = trim($first_name . ' ' . $last_name);
+            if (empty($guest_name)) {
+                $guest_name = 'Guest';
+            }
+            
+            // Get secure booking ID and create link
+            $secure_id = $this->get_secure_booking_id($booking_id);
+            
+            // Use the documents subdomain for the booking URL
+            $upload_url = 'https://documents.villa-claudia.eu/' . $secure_id;
+            
+            // Email content
+            $subject = 'Villa Claudia: Your Document Upload Link';
+            $message = "Hello $guest_name,\n\n";
+            $message .= "Here is your secure link to upload your travel documents for your upcoming stay at Villa Claudia:\n\n";
+            $message .= $upload_url . "\n\n";
+            $message .= "This link is unique to your booking and ensures your documents are securely attached to your reservation.\n\n";
+            $message .= "If you have any questions, please don't hesitate to contact us.\n\n";
+            $message .= "Best regards,\nVilla Claudia Team";
+            
+            $headers = array('Content-Type: text/plain; charset=UTF-8');
+            
+            // Send email
+            $email_sent = wp_mail($recipient_email, $subject, $message, $headers);
+            
+            if ($email_sent) {
+                wp_redirect(admin_url('options-general.php?page=villa-claudia-docs&email_sent=success'));
+            } else {
+                wp_redirect(admin_url('options-general.php?page=villa-claudia-docs&email_sent=error'));
+            }
             exit;
         }
     }
