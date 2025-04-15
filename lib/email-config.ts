@@ -2,12 +2,16 @@ import nodemailer from 'nodemailer';
 
 // Email configuration
 export const emailConfig = {
-  host: process.env.EMAIL_HOST || "smtp.hostinger.com",
+  host: process.env.EMAIL_HOST,
   port: parseInt(process.env.EMAIL_PORT || "587"),
-  secure: process.env.EMAIL_SECURE === "true",
+  secure: false, // Use STARTTLS
   auth: {
-    user: process.env.EMAIL_USER || "no-reply@villa-claudia.eu",
-    pass: process.env.EMAIL_PASSWORD || "your-password",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
+  tls: {
+    // Do not fail on invalid certs
+    rejectUnauthorized: false
   },
   fromName: process.env.EMAIL_FROM_NAME || "Villa Claudia",
   fromAddress: process.env.EMAIL_FROM_ADDRESS || "no-reply@villa-claudia.eu",
@@ -29,15 +33,32 @@ export function validateEmailConfig() {
   return true;
 }
 
-// Create email transporter
+// Create email transporter with debug logging
 export function createEmailTransporter() {
   validateEmailConfig();
-  return nodemailer.createTransport({
+  const transporter = nodemailer.createTransport({
     host: emailConfig.host,
     port: emailConfig.port,
     secure: emailConfig.secure,
     auth: emailConfig.auth,
+    tls: emailConfig.tls,
+    debug: true,
+    logger: true,
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,   // 10 seconds
+    socketTimeout: 10000      // 10 seconds
   });
+
+  // Verify the connection configuration
+  transporter.verify(function(error) {
+    if (error) {
+      console.error('SMTP Connection Error:', error);
+    } else {
+      console.log('SMTP Server is ready to take our messages');
+    }
+  });
+
+  return transporter;
 }
 
 // Create magic link for document upload

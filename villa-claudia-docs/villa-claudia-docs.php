@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.4.3
+ * Version: 1.4.4
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -37,6 +37,9 @@ class Villa_Claudia_Docs {
         
         // Add handler for test email
         add_action('admin_init', array($this, 'handle_test_email'));
+        
+        // Add handler for sending documents to city
+        add_action('wp_ajax_villa_claudia_send_to_city', array($this, 'handle_send_to_city'));
     }
     
     public function init() {
@@ -256,6 +259,7 @@ class Villa_Claudia_Docs {
     
     public function register_settings() {
         register_setting('villa_claudia_settings', 'villa_claudia_api_key');
+        register_setting('villa_claudia_settings', 'villa_claudia_city_email');
     }
     
     public function admin_page() {
@@ -272,6 +276,15 @@ class Villa_Claudia_Docs {
                                    name="villa_claudia_api_key" 
                                    value="<?php echo esc_attr(get_option('villa_claudia_api_key')); ?>" />
                             <p class="description">This key is used to authenticate API requests from the document upload application.</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">City Email Address</th>
+                        <td>
+                            <input type="email" style="width: 320px;" 
+                                   name="villa_claudia_city_email" 
+                                   value="<?php echo esc_attr(get_option('villa_claudia_city_email', 'grad@makarska.hr')); ?>" />
+                            <p class="description">Email address where guest documents will be sent for city registration.</p>
                         </td>
                     </tr>
                 </table>
@@ -338,7 +351,7 @@ class Villa_Claudia_Docs {
     public function add_documents_meta_box() {
         add_meta_box(
             'villa_claudia_documents',
-            'Travel Documents',
+            'Guest Documents',
             array($this, 'display_documents_meta_box'),
             'mphb_booking',
             'normal',
@@ -375,6 +388,46 @@ class Villa_Claudia_Docs {
         }
         
         echo '</tbody></table>';
+
+        // Add Send to City button if documents are approved
+        $all_approved = true;
+        foreach ($documents as $document) {
+            if ($document['status'] !== 'approved') {
+                $all_approved = false;
+                break;
+            }
+        }
+
+        if ($all_approved && !empty($documents)) {
+            echo '<div class="misc-pub-section">';
+            echo '<button type="button" class="button button-primary" id="send-to-city" style="width: 100%; margin-top: 10px;">';
+            echo 'Send Documents to City';
+            echo '</button>';
+            echo '</div>';
+            
+            // Add JavaScript to handle the button click
+            echo '<script>
+                jQuery(document).ready(function($) {
+                    $("#send-to-city").on("click", function() {
+                        if (confirm("Are you sure you want to send these documents to the city?")) {
+                            var data = {
+                                action: "villa_claudia_send_to_city",
+                                booking_id: ' . $post->ID . ',
+                                nonce: "' . wp_create_nonce('villa_claudia_send_to_city') . '"
+                            };
+                            
+                            $.post(ajaxurl, data, function(response) {
+                                if (response.success) {
+                                    alert("Documents sent successfully!");
+                                } else {
+                                    alert("Error: " + response.data);
+                                }
+                            });
+                        }
+                    });
+                });
+            </script>';
+        }
     }
     
     public function check_documents_exist($request) {
@@ -904,6 +957,91 @@ class Villa_Claudia_Docs {
                 wp_redirect(admin_url('options-general.php?page=villa-claudia-docs&email_sent=error'));
             }
             exit;
+        }
+    }
+
+    // Add handler for sending documents to city
+    public function handle_send_to_city() {
+        check_ajax_referer('villa_claudia_send_to_city', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('You do not have permission to perform this action');
+        }
+        
+        $booking_id = intval($_POST['booking_id']);
+        if (!$booking_id) {
+            wp_send_json_error('Invalid booking ID');
+        }
+        
+        // Get booking details
+        $booking = get_post($booking_id);
+        if (!$booking || $booking->post_type !== 'mphb_booking') {
+            wp_send_json_error('Booking not found');
+        }
+        
+        // Get guest info
+        $guest_info = get_post_meta($booking_id, 'mphb_guest_info', true);
+        $first_name = '';
+        $last_name = '';
+        
+        if (is_array($guest_info) && isset($guest_info['first_name'])) {
+            $first_name = $guest_info['first_name'];
+            $last_name = isset($guest_info['last_name']) ? $guest_info['last_name'] : '';
+        } else {
+            $first_name = get_post_meta($booking_id, 'mphb_first_name', true);
+            $last_name = get_post_meta($booking_id, 'mphb_last_name', true);
+        }
+        
+        $guest_name = trim($first_name . ' ' . $last_name);
+        $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
+        
+        // Get documents
+        $documents = get_post_meta($booking_id, 'villa_claudia_document');
+        if (empty($documents)) {
+            wp_send_json_error('No documents found for this booking');
+        }
+        
+        // Prepare email content
+        $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
+        
+        $message = "Dear City Administration,\n\n";
+        $message .= "Please find attached the documents for the following guest:\n\n";
+        $message .= "Guest Name: " . $guest_name . "\n";
+        $message .= "Check-in Date: " . $check_in_date . "\n";
+        $message .= "Booking ID: " . $booking_id . "\n\n";
+        $message .= "Best regards,\nVilla Claudia";
+        
+        // Prepare attachments
+        $attachments = array();
+        $upload_dir = wp_upload_dir();
+        
+        foreach ($documents as $document) {
+            if ($document['status'] === 'approved') {
+                $file_path = $upload_dir['basedir'] . '/villa-claudia-docs/' . $document['filename'];
+                if (file_exists($file_path)) {
+                    $attachments[] = $file_path;
+                }
+            }
+        }
+        
+        // Send email
+        $headers = array('Content-Type: text/plain; charset=UTF-8');
+        $city_email = get_option('villa_claudia_city_email', 'grad@makarska.hr');
+        
+        // Check if the property is in Valentici
+        $property_address = get_post_meta($booking_id, 'mphb_property_address', true);
+        if (stripos($property_address, 'Valentici') !== false) {
+            $city_email = 'grad@makarska.hr'; // Use Makarska for Valentici
+        }
+        
+        $sent = wp_mail($city_email, $subject, $message, $headers, $attachments);
+        
+        if ($sent) {
+            // Update booking meta to mark documents as sent
+            update_post_meta($booking_id, 'villa_claudia_documents_sent', current_time('mysql'));
+            wp_send_json_success('Documents sent successfully');
+        } else {
+            wp_send_json_error('Failed to send email');
         }
     }
 }
