@@ -11,12 +11,16 @@ async function validateBooking(secureBookingId: string) {
       return null;
     }
     
-    // Call the API endpoint to validate the booking
-    const response = await fetch(`/api/booking?id=${secureBookingId}`, {
+    // Extract the actual booking ID (just the numeric part before the dates)
+    const bookingId = bookingIdMatch[1];
+    
+    // Call the API endpoint with just the booking ID
+    const response = await fetch(`/api/booking?id=${bookingId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
+      cache: 'no-store'
     });
     
     if (!response.ok) {

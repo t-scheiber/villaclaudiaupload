@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.4.0
+ * Version: 1.4.1
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -664,7 +664,7 @@ class Villa_Claudia_Docs {
                                     $secure_id = $this->get_secure_booking_id($booking_id);
                                     
                                     // Use the documents subdomain for the booking URL
-                                    $upload_url = 'https://documents.villa-claudia.eu/' . $secure_id;
+                                    $upload_url = 'https://documents.villa-claudia.eu/uploads/' . $secure_id;
                                     echo '<a href="#" onclick="navigator.clipboard.writeText(\'' . $upload_url . '\');alert(\'URL copied!\');return false;" title="Click to copy">' . $upload_url . '</a>';
                                     ?>
                                 </td>
