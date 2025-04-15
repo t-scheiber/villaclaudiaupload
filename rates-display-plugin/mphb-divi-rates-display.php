@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: MotoPress Hotel Booking Rates Display for Divi
+ * Plugin Name: MotoPress Hotel Booking Rates Display
  * Plugin URI: 
  * Description: A custom Divi Builder module to display MotoPress Hotel Booking seasonal rates in a nicer way.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Thomas Scheiber
  * Text Domain: mphb-divi-rates
  */
@@ -61,7 +61,7 @@ class MphbDiviRatesExtension extends DiviExtension {
      *
      * @var string
      */
-    protected $gettext_domain = 'mphb-divi-rates';
+    public $gettext_domain = 'mphb-divi-rates';
 
     /**
      * The extension's WP Plugin name.
