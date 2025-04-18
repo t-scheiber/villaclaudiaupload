@@ -1049,49 +1049,73 @@ class Villa_Claudia_Docs {
         // Prepare email content
         $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
         
-        // Create simple text-based email that will work even if HTML is stripped
-        $message = '<html><body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">';
-        $message .= '<p>Dear City Administration,</p>';
-        $message .= '<p>Please find attached the documents for the following guests:</p>';
-        $message .= '<p>---------------------------------------------------------------------------------</p>';
-        $message .= '<p><strong>GUEST DOCUMENTS INFORMATION:</strong></p>';
+        // Create simple pre-formatted text email for maximum Outlook compatibility
+        $message = "Dear City Administration,\r\n\r\n";
+        $message .= "Please find attached the documents for the following guests:\r\n\r\n";
+        $message .= "GUEST DOCUMENTS INFORMATION:\r\n";
         
-        // Add each guest's information in a simple format
+        // Add each guest's information in a simple pre-formatted way
         foreach ($travelers as $traveler) {
             foreach ($traveler['documents'] as $document) {
                 if ($document['status'] === 'verified') {
-                    $message .= '<p>';
-                    $message .= '<strong>Guest:</strong> ' . esc_html($traveler['name']) . '<br>';
-                    $message .= '<strong>Document Type:</strong> ' . esc_html(ucfirst($document['document_type'])) . '<br>';
-                    $message .= '<strong>Document Number:</strong> ' . esc_html($document['document_number']) . '<br>';
-                    $message .= '</p>';
-                    $message .= '<p>---------------------------------------------------------------------------------</p>';
+                    $message .= "---------------------------------------------\r\n";
+                    $message .= "Guest: " . esc_html($traveler['name']) . "\r\n";
+                    $message .= "Document Type: " . esc_html(ucfirst($document['document_type'])) . "\r\n";
+                    $message .= "Document Number: " . esc_html($document['document_number']) . "\r\n";
                 }
             }
         }
         
-        $message .= '<p><strong>Check-in Date:</strong> ' . esc_html($check_in_date) . '</p>';
-        $message .= '<p><strong>Booking ID:</strong> ' . esc_html($booking_id) . '</p>';
-        $message .= '<br>';
-        $message .= '<p>Best regards,<br>Villa Claudia</p>';
-        $message .= '</body></html>';
+        $message .= "---------------------------------------------\r\n\r\n";
+        $message .= "Check-in Date: " . esc_html($check_in_date) . "\r\n";
+        $message .= "Booking ID: " . esc_html($booking_id) . "\r\n\r\n";
+        $message .= "Best regards,\r\nVilla Claudia";
         
         // Prepare attachments
         $attachments = array();
         $upload_dir = wp_upload_dir();
+        $temp_dir = $upload_dir['basedir'] . '/booking-documents/temp-' . $booking_id . '-' . time();
+        
+        // Create temporary directory for renamed files
+        if (!file_exists($temp_dir)) {
+            wp_mkdir_p($temp_dir);
+        }
+        
+        $temp_files = array(); // Track temp files to delete later
         
         foreach ($documents as $document) {
             if ($document['status'] === 'verified') {
-                $file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
-                if (file_exists($file_path)) {
-                    $attachments[] = $file_path;
+                $original_file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
+                if (file_exists($original_file_path)) {
+                    // Get file extension
+                    $file_extension = pathinfo($original_file_path, PATHINFO_EXTENSION);
+                    
+                    // Create sanitized filename with passenger name and document type
+                    $new_filename = sanitize_file_name(
+                        $document['traveler_name'] . '-' . 
+                        ucfirst($document['document_type']) . '-' . 
+                        $document['document_number'] . '.' . 
+                        $file_extension
+                    );
+                    
+                    // New temporary file path
+                    $temp_file_path = $temp_dir . '/' . $new_filename;
+                    
+                    // Copy the file with the new name
+                    if (copy($original_file_path, $temp_file_path)) {
+                        $attachments[] = $temp_file_path;
+                        $temp_files[] = $temp_file_path;
+                    } else {
+                        // If copy fails, use original file
+                        $attachments[] = $original_file_path;
+                    }
                 }
             }
         }
         
         // Send email
         $headers = array(
-            'Content-Type: text/html; charset=UTF-8',
+            'Content-Type: text/plain; charset=UTF-8',
             'From: Villa Claudia <administration@villa-claudia.eu>'
         );
         
@@ -1104,6 +1128,17 @@ class Villa_Claudia_Docs {
         }
         
         $sent = wp_mail($city_email, $subject, $message, $headers, $attachments);
+        
+        // Clean up temporary files
+        if (!empty($temp_files)) {
+            foreach ($temp_files as $temp_file) {
+                if (file_exists($temp_file)) {
+                    unlink($temp_file);
+                }
+            }
+            // Remove temp directory
+            rmdir($temp_dir);
+        }
         
         if ($sent) {
             // Update booking meta to mark documents as sent
@@ -1133,12 +1168,41 @@ class Villa_Claudia_Docs {
                 // Prepare attachments
                 $attachments = array();
                 $upload_dir = wp_upload_dir();
+                $temp_dir = $upload_dir['basedir'] . '/booking-documents/temp-' . $booking_id . '-' . time();
+                
+                // Create temporary directory for renamed files
+                if (!file_exists($temp_dir)) {
+                    wp_mkdir_p($temp_dir);
+                }
+                
+                $temp_files = array(); // Track temp files to delete later
                 
                 foreach ($documents as $document) {
                     if (isset($document['status']) && $document['status'] === 'verified') {
-                        $file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
-                        if (file_exists($file_path)) {
-                            $attachments[] = $file_path;
+                        $original_file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
+                        if (file_exists($original_file_path)) {
+                            // Get file extension
+                            $file_extension = pathinfo($original_file_path, PATHINFO_EXTENSION);
+                            
+                            // Create sanitized filename with passenger name and document type
+                            $new_filename = sanitize_file_name(
+                                $document['traveler_name'] . '-' . 
+                                ucfirst($document['document_type']) . '-' . 
+                                $document['document_number'] . '.' . 
+                                $file_extension
+                            );
+                            
+                            // New temporary file path
+                            $temp_file_path = $temp_dir . '/' . $new_filename;
+                            
+                            // Copy the file with the new name
+                            if (copy($original_file_path, $temp_file_path)) {
+                                $attachments[] = $temp_file_path;
+                                $temp_files[] = $temp_file_path;
+                            } else {
+                                // If copy fails, use original file
+                                $attachments[] = $original_file_path;
+                            }
                         }
                     }
                 }
@@ -1148,10 +1212,21 @@ class Villa_Claudia_Docs {
                 } else {
                     // Send email
                     $headers = array(
-                        'Content-Type: text/html; charset=UTF-8',
+                        'Content-Type: text/plain; charset=UTF-8',
                         'From: Villa Claudia <administration@villa-claudia.eu>'
                     );
                     $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
+                    
+                    // Clean up temporary files
+                    if (!empty($temp_files)) {
+                        foreach ($temp_files as $temp_file) {
+                            if (file_exists($temp_file)) {
+                                unlink($temp_file);
+                            }
+                        }
+                        // Remove temp directory
+                        rmdir($temp_dir);
+                    }
                     
                     if ($sent) {
                         update_post_meta($booking_id, 'villa_claudia_documents_sent', current_time('mysql'));
@@ -1227,20 +1302,20 @@ class Villa_Claudia_Docs {
                     <tr>
                         <th scope="row"><label for="email_message">Email Message</label></th>
                         <td>
-                            <textarea name="email_message" id="email_message" class="large-text" rows="15" required><html><body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">
-<p>Dear City Administration,</p>
-<p>Please find attached the documents for the following guests:</p>
-<p>---------------------------------------------------------------------------------</p>
-<p><strong>GUEST DOCUMENTS INFORMATION:</strong></p>
+                            <textarea name="email_message" id="email_message" class="large-text" rows="15" required>Dear City Administration,
 
+Please find attached the documents for the following guests:
+
+GUEST DOCUMENTS INFORMATION:
 [Guest Documents Table Rows]
+---------------------------------------------
 
-<p><strong>Check-in Date:</strong> [Check-in Date]</p>
-<p><strong>Booking ID:</strong> [Booking ID]</p>
-<br>
-<p>Best regards,<br>Villa Claudia</p>
-</body></html></textarea>
-                            <p class="description">Enter the message body for the email. HTML formatting is supported.</p>
+Check-in Date: [Check-in Date]
+Booking ID: [Booking ID]
+
+Best regards,
+Villa Claudia</textarea>
+                            <p class="description">Enter the message body for the email. Plain text format is recommended for Outlook compatibility.</p>
                         </td>
                     </tr>
                 </table>
@@ -1267,33 +1342,30 @@ class Villa_Claudia_Docs {
                                 // Update subject
                                 $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
                                 
-                                // Create HTML table rows
+                                // Create plain text rows for documents
                                 var tableRows = '';
                                 response.data.forEach(function(doc) {
                                     if (doc.status === 'verified') {
-                                        tableRows += `<p>
-<strong>Guest:</strong> ${doc.traveler_name}<br>
-<strong>Document Type:</strong> ${doc.document_type}<br>
-<strong>Document Number:</strong> ${doc.document_number}<br>
-</p>
-<p>---------------------------------------------------------------------------------</p>`;
+                                        tableRows += "---------------------------------------------\n";
+                                        tableRows += "Guest: " + doc.traveler_name + "\n";
+                                        tableRows += "Document Type: " + doc.document_type + "\n";
+                                        tableRows += "Document Number: " + doc.document_number + "\n";
                                     }
                                 });
                                 
-                                // Create HTML email template
-                                var messageTemplate = `<html><body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">
-<p>Dear City Administration,</p>
-<p>Please find attached the documents for the following guests:</p>
-<p>---------------------------------------------------------------------------------</p>
-<p><strong>GUEST DOCUMENTS INFORMATION:</strong></p>
+                                // Create plain text email template
+                                var messageTemplate = `Dear City Administration,
 
-${tableRows}
+Please find attached the documents for the following guests:
 
-<p><strong>Check-in Date:</strong> ${checkInDate}</p>
-<p><strong>Booking ID:</strong> ${bookingId}</p>
-<br>
-<p>Best regards,<br>Villa Claudia</p>
-</body></html>`;
+GUEST DOCUMENTS INFORMATION:
+${tableRows}---------------------------------------------
+
+Check-in Date: ${checkInDate}
+Booking ID: ${bookingId}
+
+Best regards,
+Villa Claudia`;
                                 
                                 $('#email_message').val(messageTemplate);
                             }
