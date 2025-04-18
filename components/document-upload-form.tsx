@@ -327,6 +327,7 @@ export default function DocumentUploadForm({
                   maxFiles={1}
                   acceptedFileTypes={["image/jpeg", "image/png", "application/pdf"]}
                   maxSizeInMB={10}
+                  id={`file-upload-${index}`}
                 />
                 {traveler.file && (
                   <p className="mt-2 text-sm text-green-600">
