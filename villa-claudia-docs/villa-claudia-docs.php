@@ -399,16 +399,16 @@ class Villa_Claudia_Docs {
         
         echo '</tbody></table>';
 
-        // Add Send to City button if documents are approved
-        $all_approved = true;
+        // Add Send to City button if documents are verified
+        $all_verified = true;
         foreach ($documents as $document) {
-            if ($document['status'] !== 'approved') {
-                $all_approved = false;
+            if ($document['status'] !== 'verified') {
+                $all_verified = false;
                 break;
             }
         }
 
-        if ($all_approved && !empty($documents)) {
+        if ($all_verified && !empty($documents)) {
             echo '<div class="misc-pub-section">';
             echo '<button type="button" class="button button-primary" id="send-to-city" style="width: 100%; margin-top: 10px;">';
             echo 'Send Documents to City';
@@ -1034,7 +1034,7 @@ class Villa_Claudia_Docs {
         foreach ($travelers as $traveler) {
             $message .= "Guest Name: " . $traveler['name'] . "\n";
             foreach ($traveler['documents'] as $document) {
-                if ($document['status'] === 'approved') {
+                if ($document['status'] === 'verified') {
                     $message .= "- " . ucfirst($document['document_type']) . ": " . $document['document_number'] . "\n";
                 }
             }
@@ -1050,7 +1050,7 @@ class Villa_Claudia_Docs {
         $upload_dir = wp_upload_dir();
         
         foreach ($documents as $document) {
-            if ($document['status'] === 'approved') {
+            if ($document['status'] === 'verified') {
                 $file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
                 if (file_exists($file_path)) {
                     $attachments[] = $file_path;
@@ -1100,7 +1100,7 @@ class Villa_Claudia_Docs {
                 $upload_dir = wp_upload_dir();
                 
                 foreach ($documents as $document) {
-                    if (isset($document['status']) && $document['status'] === 'approved') {
+                    if (isset($document['status']) && $document['status'] === 'verified') {
                         $file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
                         if (file_exists($file_path)) {
                             $attachments[] = $file_path;
@@ -1109,7 +1109,7 @@ class Villa_Claudia_Docs {
                 }
                 
                 if (empty($attachments)) {
-                    echo '<div class="notice notice-error"><p>No approved documents found for this booking.</p></div>';
+                    echo '<div class="notice notice-error"><p>No verified documents found for this booking.</p></div>';
                 } else {
                     // Send email
                     $headers = array('Content-Type: text/plain; charset=UTF-8');
