@@ -40,6 +40,9 @@ class Villa_Claudia_Docs {
         
         // Add handler for sending documents to city
         add_action('wp_ajax_villa_claudia_send_to_city', array($this, 'handle_send_to_city'));
+        
+        // Add this new method to the class
+        add_action('wp_ajax_villa_claudia_get_booking_docs', array($this, 'ajax_get_booking_docs'));
     }
     
     public function init() {
@@ -1030,31 +1033,36 @@ class Villa_Claudia_Docs {
         $message = "Dear City Administration,\n\n";
         $message .= "Please find attached the documents for the following guests:\n\n";
 
-        // Create table header
-        $message .= "+------------------------+------------------+----------------------+\n";
-        $message .= "| Guest Name            | Document Type    | Document Number      |\n";
-        $message .= "+------------------------+------------------+----------------------+\n";
+        // Create HTML message
+        $message .= '<table style="border-collapse: collapse; width: 100%; margin: 20px 0;">';
+        $message .= '<tr style="background-color: #f2f2f2;">
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Guest Name</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Document Type</th>
+            <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Document Number</th>
+        </tr>';
 
         // Add each guest's information in table format
         foreach ($travelers as $traveler) {
             foreach ($traveler['documents'] as $document) {
                 if ($document['status'] === 'verified') {
                     $message .= sprintf(
-                        "| %-22s | %-16s | %-20s |\n",
-                        substr($traveler['name'], 0, 22),
-                        substr(ucfirst($document['document_type']), 0, 16),
-                        substr($document['document_number'], 0, 20)
+                        '<tr>
+                            <td style="border: 1px solid #ddd; padding: 8px;">%s</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">%s</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">%s</td>
+                        </tr>',
+                        esc_html($traveler['name']),
+                        esc_html(ucfirst($document['document_type'])),
+                        esc_html($document['document_number'])
                     );
                 }
             }
         }
 
-        // Close table
-        $message .= "+------------------------+------------------+----------------------+\n\n";
-
-        $message .= "Check-in Date: " . $check_in_date . "\n";
-        $message .= "Booking ID: " . $booking_id . "\n\n";
-        $message .= "Best regards,\nVilla Claudia";
+        $message .= '</table><br>';
+        $message .= "Check-in Date: " . esc_html($check_in_date) . "<br>";
+        $message .= "Booking ID: " . esc_html($booking_id) . "<br><br>";
+        $message .= "Best regards,<br>Villa Claudia";
         
         // Prepare attachments
         $attachments = array();
@@ -1070,7 +1078,10 @@ class Villa_Claudia_Docs {
         }
         
         // Send email
-        $headers = array('Content-Type: text/plain; charset=UTF-8');
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8'
+        );
+        
         $city_email = get_option('villa_claudia_city_email', 'grad@makarska.hr');
         
         // Check if the property is in Valentici
@@ -1123,7 +1134,9 @@ class Villa_Claudia_Docs {
                     echo '<div class="notice notice-error"><p>No verified documents found for this booking.</p></div>';
                 } else {
                     // Send email
-                    $headers = array('Content-Type: text/plain; charset=UTF-8');
+                    $headers = array(
+                        'Content-Type: text/html; charset=UTF-8'
+                    );
                     $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
                     
                     if ($sent) {
@@ -1204,11 +1217,14 @@ class Villa_Claudia_Docs {
 
 Please find attached the documents for the following guests:
 
-+------------------------+------------------+----------------------+
-| Guest Name            | Document Type    | Document Number      |
-+------------------------+------------------+----------------------+
-| [Guest Name]          |                  |                      |
-+------------------------+------------------+----------------------+
+<table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+    <tr style="background-color: #f2f2f2;">
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Guest Name</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Document Type</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Document Number</th>
+    </tr>
+    [Guest Documents Table Rows]
+</table>
 
 Check-in Date: [Check-in Date]
 Booking ID: [Booking ID]
@@ -1230,25 +1246,74 @@ Villa Claudia</textarea>
                 $('#booking_id').on('change', function() {
                     var bookingId = $(this).val();
                     if (bookingId) {
-                        // Get booking details
-                        var guestName = $('option:selected', this).text().split(' - ')[1];
-                        var checkInDate = $('option:selected', this).text().split('Check-in: ')[1].replace(')', '');
-                        
-                        // Update subject and message
-                        $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
-                        
-                        var messageTemplate = $('#email_message').val();
-                        messageTemplate = messageTemplate.replace('[Guest Name]', guestName);
-                        messageTemplate = messageTemplate.replace('[Check-in Date]', checkInDate);
-                        messageTemplate = messageTemplate.replace('[Booking ID]', bookingId);
-                        
-                        $('#email_message').val(messageTemplate);
+                        // Make an AJAX call to get the documents for this booking
+                        $.post(ajaxurl, {
+                            action: 'villa_claudia_get_booking_docs',
+                            booking_id: bookingId,
+                            nonce: '<?php echo wp_create_nonce("villa_claudia_get_docs"); ?>'
+                        }, function(response) {
+                            if (response.success) {
+                                var guestName = $('option:selected', '#booking_id').text().split(' - ')[1];
+                                var checkInDate = $('option:selected', '#booking_id').text().split('Check-in: ')[1].replace(')', '');
+                                
+                                // Update subject
+                                $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
+                                
+                                // Create HTML table with guest documents
+                                var tableRows = '';
+                                response.data.forEach(function(doc) {
+                                    if (doc.status === 'verified') {
+                                        tableRows += `<tr>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${doc.traveler_name}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${doc.document_type}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${doc.document_number}</td>
+                                        </tr>`;
+                                    }
+                                });
+                                
+                                // Update message with HTML table
+                                var messageTemplate = `Dear City Administration,
+
+Please find attached the documents for the following guests:
+
+<table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+    <tr style="background-color: #f2f2f2;">
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Guest Name</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Document Type</th>
+        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Document Number</th>
+    </tr>
+    ${tableRows}
+</table>
+
+Check-in Date: ${checkInDate}
+Booking ID: ${bookingId}
+
+Best regards,
+Villa Claudia`;
+                                
+                                $('#email_message').val(messageTemplate);
+                            }
+                        });
                     }
                 });
             });
             </script>
         </div>
         <?php
+    }
+
+    // Add this new method to the class
+    public function ajax_get_booking_docs() {
+        check_ajax_referer('villa_claudia_get_docs', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        $booking_id = intval($_POST['booking_id']);
+        $documents = get_post_meta($booking_id, 'villa_claudia_document');
+        
+        wp_send_json_success($documents);
     }
 }
 
