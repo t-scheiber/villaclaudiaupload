@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.4.4
+ * Version: 1.5.0
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -254,6 +254,16 @@ class Villa_Claudia_Docs {
             array($this, 'document_uploads_page'),
             'dashicons-media-document',
             30
+        );
+
+        // Add new Send to City admin page
+        add_submenu_page(
+            'document-uploads',
+            'Send Documents to City',
+            'Send to City',
+            'manage_options',
+            'send-to-city',
+            array($this, 'send_to_city_page')
         );
     }
     
@@ -1001,12 +1011,36 @@ class Villa_Claudia_Docs {
             wp_send_json_error('No documents found for this booking');
         }
         
+        // Group documents by traveler
+        $travelers = array();
+        foreach ($documents as $document) {
+            $traveler_name = $document['traveler_name'];
+            if (!isset($travelers[$traveler_name])) {
+                $travelers[$traveler_name] = array(
+                    'name' => $traveler_name,
+                    'documents' => array()
+                );
+            }
+            $travelers[$traveler_name]['documents'][] = $document;
+        }
+        
         // Prepare email content
         $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
         
         $message = "Dear City Administration,\n\n";
-        $message .= "Please find attached the documents for the following guest:\n\n";
-        $message .= "Guest Name: " . $guest_name . "\n";
+        $message .= "Please find attached the documents for the following guests:\n\n";
+        
+        // Add information for each traveler
+        foreach ($travelers as $traveler) {
+            $message .= "Guest Name: " . $traveler['name'] . "\n";
+            foreach ($traveler['documents'] as $document) {
+                if ($document['status'] === 'approved') {
+                    $message .= "- " . ucfirst($document['document_type']) . ": " . $document['document_number'] . "\n";
+                }
+            }
+            $message .= "\n";
+        }
+        
         $message .= "Check-in Date: " . $check_in_date . "\n";
         $message .= "Booking ID: " . $booking_id . "\n\n";
         $message .= "Best regards,\nVilla Claudia";
@@ -1017,7 +1051,7 @@ class Villa_Claudia_Docs {
         
         foreach ($documents as $document) {
             if ($document['status'] === 'approved') {
-                $file_path = $upload_dir['basedir'] . '/villa-claudia-docs/' . $document['filename'];
+                $file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
                 if (file_exists($file_path)) {
                     $attachments[] = $file_path;
                 }
@@ -1043,6 +1077,162 @@ class Villa_Claudia_Docs {
         } else {
             wp_send_json_error('Failed to send email');
         }
+    }
+
+    // Add new method for the Send to City page
+    public function send_to_city_page() {
+        // Check if form was submitted
+        if (isset($_POST['send_to_city_submit'])) {
+            check_admin_referer('villa_claudia_send_to_city_form');
+            
+            $booking_id = intval($_POST['booking_id']);
+            $recipient_email = sanitize_email($_POST['recipient_email']);
+            $subject = sanitize_text_field($_POST['email_subject']);
+            $message = sanitize_textarea_field($_POST['email_message']);
+            
+            // Get documents
+            $documents = get_post_meta($booking_id, 'villa_claudia_document');
+            if (empty($documents)) {
+                echo '<div class="notice notice-error"><p>No documents found for this booking.</p></div>';
+            } else {
+                // Prepare attachments
+                $attachments = array();
+                $upload_dir = wp_upload_dir();
+                
+                foreach ($documents as $document) {
+                    if (isset($document['status']) && $document['status'] === 'approved') {
+                        $file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
+                        if (file_exists($file_path)) {
+                            $attachments[] = $file_path;
+                        }
+                    }
+                }
+                
+                if (empty($attachments)) {
+                    echo '<div class="notice notice-error"><p>No approved documents found for this booking.</p></div>';
+                } else {
+                    // Send email
+                    $headers = array('Content-Type: text/plain; charset=UTF-8');
+                    $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
+                    
+                    if ($sent) {
+                        update_post_meta($booking_id, 'villa_claudia_documents_sent', current_time('mysql'));
+                        echo '<div class="notice notice-success"><p>Documents sent successfully!</p></div>';
+                    } else {
+                        echo '<div class="notice notice-error"><p>Failed to send email. Please try again.</p></div>';
+                    }
+                }
+            }
+        }
+        
+        // Get all bookings with documents
+        global $wpdb;
+        $bookings_with_docs = $wpdb->get_col(
+            "SELECT post_id FROM {$wpdb->postmeta} 
+             WHERE meta_key = 'villa_claudia_has_documents' 
+             AND meta_value = '1'"
+        );
+        
+        ?>
+        <div class="wrap">
+            <h1>Send Documents to City</h1>
+            
+            <form method="post" action="">
+                <?php wp_nonce_field('villa_claudia_send_to_city_form'); ?>
+                
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="booking_id">Select Booking</label></th>
+                        <td>
+                            <select name="booking_id" id="booking_id" required>
+                                <option value="">Select a booking...</option>
+                                <?php
+                                foreach ($bookings_with_docs as $booking_id) {
+                                    $guest_info = get_post_meta($booking_id, 'mphb_guest_info', true);
+                                    $first_name = is_array($guest_info) && isset($guest_info['first_name']) ? $guest_info['first_name'] : get_post_meta($booking_id, 'mphb_first_name', true);
+                                    $last_name = is_array($guest_info) && isset($guest_info['last_name']) ? $guest_info['last_name'] : get_post_meta($booking_id, 'mphb_last_name', true);
+                                    $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
+                                    
+                                    printf(
+                                        '<option value="%d">Booking #%d - %s %s (Check-in: %s)</option>',
+                                        $booking_id,
+                                        $booking_id,
+                                        esc_html($first_name),
+                                        esc_html($last_name),
+                                        esc_html($check_in_date)
+                                    );
+                                }
+                                ?>
+                            </select>
+                            <p class="description">Select the booking whose documents you want to send.</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row"><label for="recipient_email">Recipient Email</label></th>
+                        <td>
+                            <input type="email" name="recipient_email" id="recipient_email" class="regular-text" 
+                                   value="<?php echo esc_attr(get_option('villa_claudia_city_email', 'grad@makarska.hr')); ?>" required>
+                            <p class="description">Enter the email address where the documents should be sent.</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row"><label for="email_subject">Email Subject</label></th>
+                        <td>
+                            <input type="text" name="email_subject" id="email_subject" class="regular-text" 
+                                   placeholder="Guest Documents - [Guest Name] - Check-in: [Date]" required>
+                            <p class="description">Enter the subject line for the email.</p>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <th scope="row"><label for="email_message">Email Message</label></th>
+                        <td>
+                            <textarea name="email_message" id="email_message" class="large-text" rows="10" required>Dear City Administration,
+
+Please find attached the documents for the following guests:
+
+Guest Name: [Guest Name]
+Check-in Date: [Check-in Date]
+Booking ID: [Booking ID]
+
+Best regards,
+Villa Claudia</textarea>
+                            <p class="description">Enter the message body for the email.</p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <p class="submit">
+                    <input type="submit" name="send_to_city_submit" class="button button-primary" value="Send Documents">
+                </p>
+            </form>
+            
+            <script>
+            jQuery(document).ready(function($) {
+                $('#booking_id').on('change', function() {
+                    var bookingId = $(this).val();
+                    if (bookingId) {
+                        // Get booking details
+                        var guestName = $('option:selected', this).text().split(' - ')[1];
+                        var checkInDate = $('option:selected', this).text().split('Check-in: ')[1].replace(')', '');
+                        
+                        // Update subject and message
+                        $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
+                        
+                        var messageTemplate = $('#email_message').val();
+                        messageTemplate = messageTemplate.replace('[Guest Name]', guestName);
+                        messageTemplate = messageTemplate.replace('[Check-in Date]', checkInDate);
+                        messageTemplate = messageTemplate.replace('[Booking ID]', bookingId);
+                        
+                        $('#email_message').val(messageTemplate);
+                    }
+                });
+            });
+            </script>
+        </div>
+        <?php
     }
 }
 
