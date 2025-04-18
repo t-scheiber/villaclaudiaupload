@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.5.7
+ * Version: 1.5.9
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -1030,86 +1030,45 @@ class Villa_Claudia_Docs {
         // Group documents by traveler
         $travelers = array();
         foreach ($documents as $document) {
-            $traveler_name = $document['traveler_name'];
-            if (!isset($travelers[$traveler_name])) {
-                $travelers[$traveler_name] = array(
-                    'name' => $traveler_name,
-                    'documents' => array()
-                );
+            if ($document['status'] === 'verified') {
+                $traveler_name = $document['traveler_name'];
+                if (!isset($travelers[$traveler_name])) {
+                    $travelers[$traveler_name] = array(
+                        'name' => $traveler_name,
+                        'documents' => array()
+                    );
+                }
+                $travelers[$traveler_name]['documents'][] = $document;
             }
-            $travelers[$traveler_name]['documents'][] = $document;
         }
         
-        // Prepare email content with table
+        if (empty($travelers)) {
+            wp_send_json_error('No verified documents found for this booking');
+        }
+        
+        // Prepare email content
         $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
-
-        // Create HTML message with proper styling
-        $message = '<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            max-width: 800px;
-            margin: 20px 0;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        p {
-            margin: 10px 0;
-            line-height: 1.5;
-        }
-    </style>
-</head>
-<body>
-    <p>Dear City Administration,</p>
-    <p>Please find attached the documents for the following guests:</p>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Guest Name</th>
-                <th>Document Type</th>
-                <th>Document Number</th>
-            </tr>
-        </thead>
-        <tbody>';
-
+        
+        // Create plain text table for the message body
+        $message = "Dear City Administration,\n\n";
+        $message .= "Please find attached the documents for the following guests:\n\n";
+        
+        // Add header row
+        $message .= str_pad("Guest Name", 30) . str_pad("Document Type", 20) . "Document Number\n";
+        $message .= str_repeat("-", 70) . "\n";
+        
         // Add each guest's information
         foreach ($travelers as $traveler) {
             foreach ($traveler['documents'] as $document) {
-                if ($document['status'] === 'verified') {
-                    $message .= sprintf(
-                        '<tr>
-                            <td>%s</td>
-                            <td>%s</td>
-                            <td>%s</td>
-                        </tr>',
-                        esc_html($traveler['name']),
-                        esc_html(ucfirst($document['document_type'])),
-                        esc_html($document['document_number'])
-                    );
-                }
+                $message .= str_pad(substr($traveler['name'], 0, 29), 30);
+                $message .= str_pad(substr(ucfirst($document['document_type']), 0, 19), 20);
+                $message .= $document['document_number'] . "\n";
             }
         }
-
-        $message .= '</tbody>
-    </table>
-    
-    <p>Check-in Date: ' . esc_html($check_in_date) . '</p>
-    <p>Booking ID: ' . esc_html($booking_id) . '</p>
-    <br>
-    <p>Best regards,<br>Villa Claudia</p>
-</body>
-</html>';
+        
+        $message .= "\nCheck-in Date: " . $check_in_date . "\n";
+        $message .= "Booking ID: " . $booking_id . "\n\n";
+        $message .= "Best regards,\nVilla Claudia";
         
         // Prepare attachments
         $attachments = array();
@@ -1126,7 +1085,7 @@ class Villa_Claudia_Docs {
         
         // Send email
         $headers = array(
-            'Content-Type: text/html; charset=UTF-8',
+            'Content-Type: text/plain; charset=UTF-8',
             'From: Villa Claudia <administration@villa-claudia.eu>'
         );
         
