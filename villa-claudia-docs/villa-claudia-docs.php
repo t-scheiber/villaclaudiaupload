@@ -46,6 +46,9 @@ class Villa_Claudia_Docs {
         
         // Add this new method to the class
         add_action('wp_ajax_villa_claudia_get_booking_docs', array($this, 'ajax_get_booking_docs'));
+        
+        // Add new handler for retrieving booking dates
+        add_action('wp_ajax_villa_claudia_get_booking_dates', array($this, 'ajax_get_booking_dates'));
     }
     
     public function init() {
@@ -1020,6 +1023,16 @@ class Villa_Claudia_Docs {
         
         $guest_name = trim($first_name . ' ' . $last_name);
         $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
+        $check_out_date = get_post_meta($booking_id, 'mphb_check_out_date', true);
+        
+        // Calculate number of nights
+        $nights = 0;
+        if (!empty($check_in_date) && !empty($check_out_date)) {
+            $check_in = new DateTime($check_in_date);
+            $check_out = new DateTime($check_out_date);
+            $interval = $check_in->diff($check_out);
+            $nights = $interval->days;
+        }
         
         // Get documents
         $documents = get_post_meta($booking_id, 'villa_claudia_document');
@@ -1068,6 +1081,8 @@ class Villa_Claudia_Docs {
         
         $message .= "---------------------------------------------\r\n\r\n";
         $message .= "Check-in Date: " . esc_html($check_in_date) . "\r\n";
+        $message .= "Check-out Date: " . esc_html($check_out_date) . "\r\n";
+        $message .= "Number of Nights: " . esc_html($nights) . "\r\n";
         $message .= "Booking ID: " . esc_html($booking_id) . "\r\n\r\n";
         $message .= "Best regards,\r\nVilla Claudia";
         
@@ -1311,6 +1326,8 @@ GUEST DOCUMENTS INFORMATION:
 ---------------------------------------------
 
 Check-in Date: [Check-in Date]
+Check-out Date: [Check-out Date]
+Number of Nights: [Number of Nights]
 Booking ID: [Booking ID]
 
 Best regards,
@@ -1337,24 +1354,38 @@ Villa Claudia</textarea>
                         }, function(response) {
                             if (response.success) {
                                 var guestName = $('option:selected', '#booking_id').text().split(' - ')[1];
-                                var checkInDate = $('option:selected', '#booking_id').text().split('Check-in: ')[1].replace(')', '');
+                                var bookingInfo = $('option:selected', '#booking_id').text().split('Check-in: ')[1].replace(')', '');
+                                var checkInDate = bookingInfo;
+                                var checkOutDate = '';
+                                var nights = 0;
                                 
-                                // Update subject
-                                $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
-                                
-                                // Create plain text rows for documents
-                                var tableRows = '';
-                                response.data.forEach(function(doc) {
-                                    if (doc.status === 'verified') {
-                                        tableRows += "---------------------------------------------\n";
-                                        tableRows += "Guest: " + doc.traveler_name + "\n";
-                                        tableRows += "Document Type: " + doc.document_type + "\n";
-                                        tableRows += "Document Number: " + doc.document_number + "\n";
-                                    }
-                                });
-                                
-                                // Create plain text email template
-                                var messageTemplate = `Dear City Administration,
+                                // Get check-out date and calculate nights
+                                $.post(ajaxurl, {
+                                    action: 'villa_claudia_get_booking_dates',
+                                    booking_id: bookingId,
+                                    nonce: '<?php echo wp_create_nonce("villa_claudia_get_dates"); ?>'
+                                }, function(datesResponse) {
+                                    if (datesResponse.success) {
+                                        checkInDate = datesResponse.data.check_in_date;
+                                        checkOutDate = datesResponse.data.check_out_date;
+                                        nights = datesResponse.data.nights;
+                                        
+                                        // Update subject
+                                        $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
+                                        
+                                        // Create plain text rows for documents
+                                        var tableRows = '';
+                                        response.data.forEach(function(doc) {
+                                            if (doc.status === 'verified') {
+                                                tableRows += "---------------------------------------------\n";
+                                                tableRows += "Guest: " + doc.traveler_name + "\n";
+                                                tableRows += "Document Type: " + doc.document_type + "\n";
+                                                tableRows += "Document Number: " + doc.document_number + "\n";
+                                            }
+                                        });
+                                        
+                                        // Create plain text email template
+                                        var messageTemplate = `Dear City Administration,
 
 Please find attached the documents for the following guests:
 
@@ -1362,12 +1393,16 @@ GUEST DOCUMENTS INFORMATION:
 ${tableRows}---------------------------------------------
 
 Check-in Date: ${checkInDate}
+Check-out Date: ${checkOutDate}
+Number of Nights: ${nights}
 Booking ID: ${bookingId}
 
 Best regards,
 Villa Claudia`;
-                                
-                                $('#email_message').val(messageTemplate);
+                                        
+                                        $('#email_message').val(messageTemplate);
+                                    }
+                                });
                             }
                         });
                     }
@@ -1403,6 +1438,38 @@ Villa Claudia`;
         $phpmailer->Password = get_option('villa_claudia_smtp_password', '');
         $phpmailer->From = 'administration@villa-claudia.eu';
         $phpmailer->FromName = 'Villa Claudia';
+    }
+
+    // Add new method for getting booking dates and calculating nights
+    public function ajax_get_booking_dates() {
+        check_ajax_referer('villa_claudia_get_dates', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+        
+        $booking_id = intval($_POST['booking_id']);
+        if (!$booking_id) {
+            wp_send_json_error('Invalid booking ID');
+        }
+        
+        $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
+        $check_out_date = get_post_meta($booking_id, 'mphb_check_out_date', true);
+        
+        // Calculate number of nights
+        $nights = 0;
+        if (!empty($check_in_date) && !empty($check_out_date)) {
+            $check_in = new DateTime($check_in_date);
+            $check_out = new DateTime($check_out_date);
+            $interval = $check_in->diff($check_out);
+            $nights = $interval->days;
+        }
+        
+        wp_send_json_success(array(
+            'check_in_date' => $check_in_date,
+            'check_out_date' => $check_out_date,
+            'nights' => $nights
+        ));
     }
 }
 
