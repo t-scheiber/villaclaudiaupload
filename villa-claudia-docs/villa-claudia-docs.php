@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.6.1
+ * Version: 1.6.2
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -393,23 +393,23 @@ class Villa_Claudia_Docs {
             return;
         }
         
-        echo '<table class="widefat">';
+        echo '<table class="widefat" style="width: 100%; border-collapse: collapse; border: 1px solid #4d4d4d;">';
         echo '<thead><tr>';
-        echo '<th>Traveler</th>';
-        echo '<th>Document Type</th>';
-        echo '<th>Document Number</th>';
-        echo '<th>Filename</th>';
-        echo '<th>Uploaded</th>';
+        echo '<th style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">Traveler</th>';
+        echo '<th style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">Document Type</th>';
+        echo '<th style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">Document Number</th>';
+        echo '<th style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">Filename</th>';
+        echo '<th style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">Uploaded</th>';
         echo '</tr></thead>';
         echo '<tbody>';
         
         foreach ($documents as $doc) {
             echo '<tr>';
-            echo '<td>' . esc_html($doc['traveler_name']) . '</td>';
-            echo '<td>' . esc_html($doc['document_type']) . '</td>';
-            echo '<td>' . esc_html($doc['document_number']) . '</td>';
-            echo '<td>' . esc_html($doc['original_name']) . '</td>';
-            echo '<td>' . esc_html($doc['uploaded_at']) . '</td>';
+            echo '<td style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">' . esc_html($doc['traveler_name']) . '</td>';
+            echo '<td style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">' . esc_html($doc['document_type']) . '</td>';
+            echo '<td style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">' . esc_html($doc['document_number']) . '</td>';
+            echo '<td style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">' . esc_html($doc['original_name']) . '</td>';
+            echo '<td style="border: 1px solid #4d4d4d; padding: 12px; text-align: left;">' . esc_html($doc['uploaded_at']) . '</td>';
             echo '</tr>';
         }
         
@@ -1049,37 +1049,32 @@ class Villa_Claudia_Docs {
         // Prepare email content
         $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
         
-        // Create plain text table for the message body
-        $message = "Dear City Administration,\n\n";
-        $message .= "Please find attached the documents for the following guests:\n\n";
+        // Create simple text-based email that will work even if HTML is stripped
+        $message = '<html><body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">';
+        $message .= '<p>Dear City Administration,</p>';
+        $message .= '<p>Please find attached the documents for the following guests:</p>';
+        $message .= '<p>---------------------------------------------------------------------------------</p>';
+        $message .= '<p><strong>GUEST DOCUMENTS INFORMATION:</strong></p>';
         
-        // Add header row with borders
-        $message .= "+----------------------+------------------+----------------------+\n";
-        $message .= "| Guest Name          | Document Type    | Document Number     |\n";
-        $message .= "+----------------------+------------------+----------------------+\n";
-        
-        // Add each guest's information
+        // Add each guest's information in a simple format
         foreach ($travelers as $traveler) {
             foreach ($traveler['documents'] as $document) {
                 if ($document['status'] === 'verified') {
-                    // Fixed widths for each column
-                    $name_width = 20;
-                    $type_width = 16; // Width of "Document Type" header
-                    $number_width = 20;
-
-                    $name = substr(str_pad($traveler['name'], $name_width), 0, $name_width);
-                    $type = substr(str_pad(ucfirst($document['document_type']), $type_width), 0, $type_width);
-                    $number = substr(str_pad($document['document_number'], $number_width), 0, $number_width);
-
-                    $message .= "| {$name} | {$type} | {$number} |\n";
+                    $message .= '<p>';
+                    $message .= '<strong>Guest:</strong> ' . esc_html($traveler['name']) . '<br>';
+                    $message .= '<strong>Document Type:</strong> ' . esc_html(ucfirst($document['document_type'])) . '<br>';
+                    $message .= '<strong>Document Number:</strong> ' . esc_html($document['document_number']) . '<br>';
+                    $message .= '</p>';
+                    $message .= '<p>---------------------------------------------------------------------------------</p>';
                 }
             }
         }
         
-        $message .= "+----------------------+------------------+----------------------+\n\n";
-        $message .= "Check-in Date: " . $check_in_date . "\n";
-        $message .= "Booking ID: " . $booking_id . "\n\n";
-        $message .= "Best regards,\nVilla Claudia";
+        $message .= '<p><strong>Check-in Date:</strong> ' . esc_html($check_in_date) . '</p>';
+        $message .= '<p><strong>Booking ID:</strong> ' . esc_html($booking_id) . '</p>';
+        $message .= '<br>';
+        $message .= '<p>Best regards,<br>Villa Claudia</p>';
+        $message .= '</body></html>';
         
         // Prepare attachments
         $attachments = array();
@@ -1096,7 +1091,7 @@ class Villa_Claudia_Docs {
         
         // Send email
         $headers = array(
-            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Type: text/html; charset=UTF-8',
             'From: Villa Claudia <administration@villa-claudia.eu>'
         );
         
@@ -1153,7 +1148,7 @@ class Villa_Claudia_Docs {
                 } else {
                     // Send email
                     $headers = array(
-                        'Content-Type: text/plain; charset=UTF-8',
+                        'Content-Type: text/html; charset=UTF-8',
                         'From: Villa Claudia <administration@villa-claudia.eu>'
                     );
                     $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
@@ -1232,23 +1227,20 @@ class Villa_Claudia_Docs {
                     <tr>
                         <th scope="row"><label for="email_message">Email Message</label></th>
                         <td>
-                            <textarea name="email_message" id="email_message" class="large-text" rows="10" required>Dear City Administration,
+                            <textarea name="email_message" id="email_message" class="large-text" rows="15" required><html><body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">
+<p>Dear City Administration,</p>
+<p>Please find attached the documents for the following guests:</p>
+<p>---------------------------------------------------------------------------------</p>
+<p><strong>GUEST DOCUMENTS INFORMATION:</strong></p>
 
-Please find attached the documents for the following guests:
+[Guest Documents Table Rows]
 
-+----------------------+------------------+----------------------+
-| Guest Name          | Document Type    | Document Number     |
-+----------------------+------------------+----------------------+
-| Thomas Scheiber     | passport        | U7221133            |
-| Thomas Scheiber     | passport        | dfgdfsgdfgsd        |
-+----------------------+------------------+----------------------+
-
-Check-in Date: [Check-in Date]
-Booking ID: [Booking ID]
-
-Best regards,
-Villa Claudia</textarea>
-                            <p class="description">Enter the message body for the email.</p>
+<p><strong>Check-in Date:</strong> [Check-in Date]</p>
+<p><strong>Booking ID:</strong> [Booking ID]</p>
+<br>
+<p>Best regards,<br>Villa Claudia</p>
+</body></html></textarea>
+                            <p class="description">Enter the message body for the email. HTML formatting is supported.</p>
                         </td>
                     </tr>
                 </table>
@@ -1260,15 +1252,6 @@ Villa Claudia</textarea>
             
             <script>
             jQuery(document).ready(function($) {
-                // Function to pad string to exact length
-                function padString(str, length) {
-                    str = str || '';
-                    if (str.length > length) {
-                        return str.substring(0, length);
-                    }
-                    return str.padEnd(length);
-                }
-
                 $('#booking_id').on('change', function() {
                     var bookingId = $(this).val();
                     if (bookingId) {
@@ -1284,38 +1267,33 @@ Villa Claudia</textarea>
                                 // Update subject
                                 $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
                                 
-                                // Create plain text table rows with borders
+                                // Create HTML table rows
                                 var tableRows = '';
                                 response.data.forEach(function(doc) {
                                     if (doc.status === 'verified') {
-                                        // Fixed widths for each column
-                                        var nameWidth = 20;
-                                        var typeWidth = 16; // Width of "Document Type" header
-                                        var numberWidth = 20;
-
-                                        var name = padString(doc.traveler_name, nameWidth);
-                                        var type = padString(doc.document_type, typeWidth);
-                                        var number = padString(doc.document_number, numberWidth);
-
-                                        tableRows += `| ${name} | ${type} | ${number} |\n`;
+                                        tableRows += `<p>
+<strong>Guest:</strong> ${doc.traveler_name}<br>
+<strong>Document Type:</strong> ${doc.document_type}<br>
+<strong>Document Number:</strong> ${doc.document_number}<br>
+</p>
+<p>---------------------------------------------------------------------------------</p>`;
                                     }
                                 });
                                 
-                                // Create plain text email template with ASCII borders
-                                var messageTemplate = `Dear City Administration,
+                                // Create HTML email template
+                                var messageTemplate = `<html><body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">
+<p>Dear City Administration,</p>
+<p>Please find attached the documents for the following guests:</p>
+<p>---------------------------------------------------------------------------------</p>
+<p><strong>GUEST DOCUMENTS INFORMATION:</strong></p>
 
-Please find attached the documents for the following guests:
+${tableRows}
 
-+----------------------+------------------+----------------------+
-| Guest Name          | Document Type    | Document Number     |
-+----------------------+------------------+----------------------+
-${tableRows}+----------------------+------------------+----------------------+
-
-Check-in Date: ${checkInDate}
-Booking ID: ${bookingId}
-
-Best regards,
-Villa Claudia`;
+<p><strong>Check-in Date:</strong> ${checkInDate}</p>
+<p><strong>Booking ID:</strong> ${bookingId}</p>
+<br>
+<p>Best regards,<br>Villa Claudia</p>
+</body></html>`;
                                 
                                 $('#email_message').val(messageTemplate);
                             }
