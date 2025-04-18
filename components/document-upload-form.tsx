@@ -25,11 +25,11 @@ export default function DocumentUploadForm({
     documentType: string; 
     documentNumber: string;
     citizenship: string;
+    file?: File;
   }[]>([
     { name: '', documentType: 'passport', documentNumber: '', citizenship: 'other' }
   ]);
   const [emailValue, setEmailValue] = useState(email);
-  const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -87,8 +87,15 @@ export default function DocumentUploadForm({
     return euCountries.some(country => country.code === citizenship);
   };
 
-  const handleFilesSelected = (selectedFiles: File[]) => {
-    setFiles(selectedFiles);
+  const handleFilesSelected = (selectedFiles: File[], travelerIndex: number) => {
+    if (selectedFiles.length > 0) {
+      const updatedTravelers = [...travelers];
+      updatedTravelers[travelerIndex] = {
+        ...updatedTravelers[travelerIndex],
+        file: selectedFiles[0]
+      };
+      setTravelers(updatedTravelers);
+    }
   };
 
   const addTraveler = () => {
@@ -122,8 +129,9 @@ export default function DocumentUploadForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (files.length === 0) {
-      setSubmitError("Please upload at least one document");
+    // Check if all travelers have uploaded a document
+    if (travelers.some(t => !t.file)) {
+      setSubmitError("Please upload a document for each guest");
       return;
     }
     
@@ -143,19 +151,18 @@ export default function DocumentUploadForm({
       // Add the first traveler's name as guestName for backward compatibility
       formData.append("guestName", travelers[0].name);
       
-      // Add files
-      files.forEach((file, index) => {
-        formData.append("files", file);
-        
-        // Add metadata for each file
-        const travelerIndex = Math.min(index, travelers.length - 1);
-        formData.append(`fileMetadata[${index}]`, JSON.stringify({
-          travelerIndex,
-          travelerName: travelers[travelerIndex].name,
-          documentType: travelers[travelerIndex].documentType,
-          documentNumber: travelers[travelerIndex].documentNumber,
-          citizenship: travelers[travelerIndex].citizenship
-        }));
+      // Add files and their metadata
+      travelers.forEach((traveler, index) => {
+        if (traveler.file) {
+          formData.append("files", traveler.file);
+          formData.append(`fileMetadata[${index}]`, JSON.stringify({
+            travelerIndex: index,
+            travelerName: traveler.name,
+            documentType: traveler.documentType,
+            documentNumber: traveler.documentNumber,
+            citizenship: traveler.citizenship
+          }));
+        }
       });
       
       const response = await fetch("/api/upload", {
@@ -297,7 +304,7 @@ export default function DocumentUploadForm({
                 )}
               </div>
               
-              <div>
+              <div className="mb-3">
                 <label htmlFor={`documentNumber-${index}`} className="block mb-1 text-sm font-medium">
                   Document Number <span className="text-red-500">*</span>
                 </label>
@@ -309,6 +316,23 @@ export default function DocumentUploadForm({
                   className="w-full p-2 border border-gray-300 rounded"
                   required
                 />
+              </div>
+
+              <div className="mb-3">
+                <label className="block mb-2 font-medium">
+                  Upload Document <span className="text-red-500">*</span>
+                </label>
+                <FileUpload 
+                  onFilesSelected={(files) => handleFilesSelected(files, index)}
+                  maxFiles={1}
+                  acceptedFileTypes={["image/jpeg", "image/png", "application/pdf"]}
+                  maxSizeInMB={10}
+                />
+                {traveler.file && (
+                  <p className="mt-2 text-sm text-green-600">
+                    Document uploaded: {traveler.file.name}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -337,21 +361,6 @@ export default function DocumentUploadForm({
           />
           <p className="mt-1 text-sm text-gray-500">
             Optional, but recommended to receive confirmation
-          </p>
-        </div>
-        
-        <div className="mb-6">
-          <label className="block mb-2 font-medium">
-            Upload Documents <span className="text-red-500">*</span>
-          </label>
-          <FileUpload 
-            onFilesSelected={handleFilesSelected}
-            maxFiles={10}
-            acceptedFileTypes={["image/jpeg", "image/png", "application/pdf"]}
-            maxSizeInMB={10}
-          />
-          <p className="mt-2 text-sm text-gray-500">
-            Please upload scans or photos of passports or ID cards for all guests
           </p>
         </div>
         
