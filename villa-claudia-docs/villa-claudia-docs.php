@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.5.2
+ * Version: 1.5.3
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -1024,23 +1024,34 @@ class Villa_Claudia_Docs {
             $travelers[$traveler_name]['documents'][] = $document;
         }
         
-        // Prepare email content
+        // Prepare email content with table
         $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
-        
+
         $message = "Dear City Administration,\n\n";
         $message .= "Please find attached the documents for the following guests:\n\n";
-        
-        // Add information for each traveler
+
+        // Create table header
+        $message .= "+------------------------+------------------+----------------------+\n";
+        $message .= "| Guest Name            | Document Type    | Document Number      |\n";
+        $message .= "+------------------------+------------------+----------------------+\n";
+
+        // Add each guest's information in table format
         foreach ($travelers as $traveler) {
-            $message .= "Guest Name: " . $traveler['name'] . "\n";
             foreach ($traveler['documents'] as $document) {
                 if ($document['status'] === 'verified') {
-                    $message .= "- " . ucfirst($document['document_type']) . ": " . $document['document_number'] . "\n";
+                    $message .= sprintf(
+                        "| %-22s | %-16s | %-20s |\n",
+                        substr($traveler['name'], 0, 22),
+                        substr(ucfirst($document['document_type']), 0, 16),
+                        substr($document['document_number'], 0, 20)
+                    );
                 }
             }
-            $message .= "\n";
         }
-        
+
+        // Close table
+        $message .= "+------------------------+------------------+----------------------+\n\n";
+
         $message .= "Check-in Date: " . $check_in_date . "\n";
         $message .= "Booking ID: " . $booking_id . "\n\n";
         $message .= "Best regards,\nVilla Claudia";
