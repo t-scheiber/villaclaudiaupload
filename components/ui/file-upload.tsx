@@ -10,6 +10,7 @@ interface FileUploadProps {
   acceptedFileTypes?: string[];
   maxSizeInMB?: number;
   className?: string;
+  id?: string;
 }
 
 export function FileUpload({
@@ -18,6 +19,7 @@ export function FileUpload({
   acceptedFileTypes = ["image/jpeg", "image/png", "application/pdf"],
   maxSizeInMB = 10,
   className,
+  id = 'file-upload'
 }: FileUploadProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -145,7 +147,7 @@ export function FileUpload({
         <div className="text-center">
           <Upload className="mx-auto h-12 w-12 text-amber-600" />
           <div className="mt-4">
-            <label htmlFor="file-upload" className="cursor-pointer text-amber-700 hover:text-amber-800 font-medium">
+            <label htmlFor={id} className="cursor-pointer text-amber-700 hover:text-amber-800 font-medium">
               Click to upload
             </label>{" "}
             <span className="text-amber-600">or drag and drop</span>
@@ -153,8 +155,8 @@ export function FileUpload({
               {acceptedFileTypes.map(type => type.split("/")[1]).join(", ")} up to {maxSizeInMB}MB (max {maxFiles} files)
             </p>
             <input
-              id="file-upload"
-              name="file-upload"
+              id={id}
+              name={id}
               type="file"
               className="sr-only"
               multiple
