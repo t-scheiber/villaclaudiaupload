@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.5.6
+ * Version: 1.5.7
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -18,6 +18,9 @@ class Villa_Claudia_Docs {
     public function __construct() {
         // Initialize the plugin
         add_action('init', array($this, 'init'));
+        
+        // Configure SMTP
+        add_action('phpmailer_init', array($this, 'configure_smtp'));
         
         // Register REST API endpoints
         add_action('rest_api_init', array($this, 'register_api_endpoints'));
@@ -273,6 +276,7 @@ class Villa_Claudia_Docs {
     public function register_settings() {
         register_setting('villa_claudia_settings', 'villa_claudia_api_key');
         register_setting('villa_claudia_settings', 'villa_claudia_city_email');
+        register_setting('villa_claudia_settings', 'villa_claudia_smtp_password');
     }
     
     public function admin_page() {
@@ -298,6 +302,15 @@ class Villa_Claudia_Docs {
                                    name="villa_claudia_city_email" 
                                    value="<?php echo esc_attr(get_option('villa_claudia_city_email', 'grad@makarska.hr')); ?>" />
                             <p class="description">Email address where guest documents will be sent for city registration.</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">SMTP Password</th>
+                        <td>
+                            <input type="password" style="width: 320px;" 
+                                   name="villa_claudia_smtp_password" 
+                                   value="<?php echo esc_attr(get_option('villa_claudia_smtp_password')); ?>" />
+                            <p class="description">Password for the administration@villa-claudia.eu email account (used for SMTP authentication).</p>
                         </td>
                     </tr>
                 </table>
@@ -1409,6 +1422,19 @@ class Villa_Claudia_Docs {
         $documents = get_post_meta($booking_id, 'villa_claudia_document');
         
         wp_send_json_success($documents);
+    }
+
+    // Add new method for SMTP configuration
+    public function configure_smtp($phpmailer) {
+        $phpmailer->isSMTP();
+        $phpmailer->Host = 'smtp.hostinger.com';
+        $phpmailer->SMTPAuth = true;
+        $phpmailer->Port = 465;
+        $phpmailer->SMTPSecure = 'ssl';
+        $phpmailer->Username = 'administration@villa-claudia.eu';
+        $phpmailer->Password = get_option('villa_claudia_smtp_password', '');
+        $phpmailer->From = 'administration@villa-claudia.eu';
+        $phpmailer->FromName = 'Villa Claudia';
     }
 }
 
