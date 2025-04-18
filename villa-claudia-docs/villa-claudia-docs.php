@@ -1142,7 +1142,7 @@ class Villa_Claudia_Docs {
                 } else {
                     // Send email
                     $headers = array(
-                        'Content-Type: text/html; charset=UTF-8',
+                        'Content-Type: text/plain; charset=UTF-8',
                         'From: Villa Claudia <administration@villa-claudia.eu>'
                     );
                     $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
