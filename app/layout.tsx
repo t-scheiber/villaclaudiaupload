@@ -22,20 +22,25 @@ export default function RootLayout({
         <header className="bg-[#fff4d8] p-4 shadow-sm border-b border-amber-300">
           <div className="container mx-auto flex justify-between items-center">
             <Link href="/" className="flex items-center">
-              <Image 
-                src="/Logo.png" 
-                alt="Villa Claudia" 
-                width={150} 
-                height={75} 
+              <Image
+                src="/Logo.png"
+                alt="Villa Claudia"
+                width={150}
+                height={75}
                 priority
+                style={{ width: "auto", height: "auto" }}
               />
             </Link>
           </div>
         </header>
         <main>{children}</main>
         <footer className="bg-[#fff4d8] p-4 text-center text-amber-800 text-sm mt-20 border-t border-amber-300">
-          <p>© {new Date().getFullYear()} Villa Claudia. All rights reserved.</p>
-          <p className="mt-1">Your documents are securely processed and stored.</p>
+          <p>
+            © {new Date().getFullYear()} Villa Claudia. All rights reserved.
+          </p>
+          <p className="mt-1">
+            Your documents are securely processed and stored.
+          </p>
         </footer>
       </body>
     </html>
