@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun --bun next dev --turbopack",
-    "build": "bun --bun next build",
-    "start": "bun --bun next start",
-    "lint": "bunx next lint"
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -37,7 +37,7 @@
     "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
-    "eslint": "^10.0.0",
+    "eslint": "^9.18.0",
     "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "^10.1.8",
     "tailwindcss": "^4.1.18",
