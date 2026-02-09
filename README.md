@@ -48,20 +48,20 @@ Create a `.env` file in the root directory and configure with your credentials:
 
 ```bash
 # Application URL
-NEXT_PUBLIC_BASE_URL=https://your-domain.com
+NEXT_PUBLIC_BASE_URL=https://documents.villa-claudia.eu
 
 # Email Configuration (SMTP)
-EMAIL_HOST=smtp.your-provider.com
+EMAIL_HOST=smtp.hostinger.com
 EMAIL_PORT=587
 EMAIL_SECURE=false
-EMAIL_USER=your-email@example.com
+EMAIL_USER=your-email@villa-claudia.eu
 EMAIL_PASSWORD=your-smtp-password
 EMAIL_FROM_NAME=Your Company Name
-EMAIL_FROM_ADDRESS=no-reply@example.com
-EMAIL_FROM=Your Company <no-reply@example.com>
+EMAIL_FROM_ADDRESS=no-reply@villa-claudia.eu
+EMAIL_FROM=Your Company <no-reply@villa-claudia.eu>
 
 # Admin Email
-ADMIN_EMAIL=admin@example.com
+ADMIN_EMAIL=admin@villa-claudia.eu
 
 # WordPress API Configuration
 WORDPRESS_API_URL=https://your-wordpress-site.com/wp-json
@@ -81,7 +81,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 📁 Project Structure
 
-```
+```path
 villaclaudiaupload/
 ├── app/
 │   ├── api/
@@ -109,32 +109,40 @@ villaclaudiaupload/
 ## 🔐 API Endpoints
 
 ### `/api/booking?bookingId={id}`
+
 Fetch booking details from WordPress.
 
 ### `/api/upload`
+
 Handle document uploads from guests.
+
 - Validates booking ID and guest email
 - Stores documents securely
 - Sends confirmation emails
 
 ### `/api/cron/document-reminders`
+
 Automated endpoint for sending document reminders.
+
 - **Method**: POST
 - **Authentication**: Bearer token in Authorization header
 - **Usage**: Call daily via cron job
 
 **Example:**
+
 ```bash
-curl -X POST https://your-domain.com/api/cron/document-reminders \
+curl -X POST https://documents.villa-claudia.eu/api/cron/document-reminders \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
 ### `/api/test-email`
+
 Test email configuration (development only).
 
 ## 📧 Automated Email Reminders
 
 The system automatically sends reminder emails to guests who:
+
 - Have a confirmed booking
 - Check-in is in approximately 7 days (6.5-7.5 days)
 - Haven't uploaded their documents yet
@@ -142,20 +150,23 @@ The system automatically sends reminder emails to guests who:
 ### Setting Up Cron Job
 
 #### Option 1: Hostinger Cron Jobs
+
 1. Log into Hostinger control panel
 2. Navigate to Advanced → Cron Jobs
 3. Create a new cron job:
-   - **Schedule**: Daily at midnight (0 0 * * *)
-   - **Command**: 
+   - **Schedule**: Daily at midnight (0 0 ** *)
+   - **Command**:
+
      ```bash
-     curl -X POST https://your-domain.com/api/cron/document-reminders \
+     curl -X POST https://documents.villa-claudia.eu/api/cron/document-reminders \
        -H "Authorization: Bearer YOUR_CRON_SECRET"
      ```
 
 #### Option 2: External Cron Service (cron-job.org)
+
 1. Sign up at [cron-job.org](https://cron-job.org)
 2. Create a new cron job:
-   - **URL**: `https://your-domain.com/api/cron/document-reminders`
+   - **URL**: `https://documents.villa-claudia.eu/api/cron/document-reminders`
    - **Method**: POST
    - **Headers**: `Authorization: Bearer YOUR_CRON_SECRET`
    - **Schedule**: Daily at 00:00
@@ -164,12 +175,13 @@ The system automatically sends reminder emails to guests who:
 
 Your WordPress site needs to provide these custom API endpoints:
 
-### Required Endpoints:
+### Required Endpoints
 
 1. **`GET /wp-json/bookings/upcoming`**
    - Returns upcoming bookings
    - Headers: `x-api-key: YOUR_API_KEY`
    - Response:
+
      ```json
      [
        {
@@ -192,6 +204,7 @@ Your WordPress site needs to provide these custom API endpoints:
    - Check if documents have been uploaded
    - Headers: `x-api-key: YOUR_API_KEY`
    - Response:
+
      ```json
      {
        "hasDocuments": true
@@ -225,10 +238,13 @@ This creates a standalone build in `.next/standalone/`.
    - Add all environment variables from `.env`
 
 3. **Set Start Command**:
+
    ```bash
    bun server.js
    ```
+
    Or if Bun isn't supported:
+
    ```bash
    node server.js
    ```
@@ -239,26 +255,29 @@ This creates a standalone build in `.next/standalone/`.
 
 ### 3. Post-Deployment
 
-1. Test email functionality: `https://your-domain.com/api/test-email`
+1. Test email functionality: `https://documents.villa-claudia.eu/api/test-email`
 2. Set up the cron job for automated reminders
 3. Test document upload flow with a real booking
 
 ## 🧪 Testing
 
 ### Test Email Configuration
+
 ```bash
-curl https://your-domain.com/api/test-email
+curl https://documents.villa-claudia.eu/api/test-email
 ```
 
 ### Test Document Reminder (Manual Trigger)
+
 ```bash
-curl -X POST https://your-domain.com/api/cron/document-reminders \
+curl -X POST https://documents.villa-claudia.eu/api/cron/document-reminders \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
 ### Test Booking Fetch
+
 ```bash
-curl "https://your-domain.com/api/booking?bookingId=ABC123"
+curl "https://documents.villa-claudia.eu/api/booking?bookingId=ABC123"
 ```
 
 ## 🔒 Security
@@ -288,18 +307,21 @@ bun run lint
 ## 🐛 Troubleshooting
 
 ### Email Not Sending
+
 1. Verify SMTP credentials in environment variables
 2. Check if port 587 is open (some hosts block it)
 3. Test with `/api/test-email` endpoint
 4. Check server logs for detailed error messages
 
 ### Cron Job Not Running
+
 1. Verify `CRON_SECRET` matches in both `.env` and cron configuration
 2. Check cron job logs in Hostinger control panel
 3. Test manually with curl command
 4. Ensure WordPress API endpoints are accessible
 
 ### Documents Not Uploading
+
 1. Check file permissions on server
 2. Verify `uploads/` directory exists and is writable
 3. Check WordPress API connectivity
