@@ -23,7 +23,7 @@ export default function RootLayout({
           <div className="container mx-auto flex justify-between items-center">
             <Link href="/" className="flex items-center">
               <Image
-                src="/Logo.png"
+                src="/public/Logo.png"
                 alt="Villa Claudia"
                 width={150}
                 height={75}
