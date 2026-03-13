@@ -313,7 +313,7 @@ class Villa_Claudia_Docs {
                             <input type="password" style="width: 320px;" 
                                    name="villa_claudia_smtp_password" 
                                    value="<?php echo esc_attr(get_option('villa_claudia_smtp_password')); ?>" />
-                            <p class="description">Password for the administration@villa-claudia.eu email account (used for SMTP authentication).</p>
+                            <p class="description">Password for the no-reply@villa-claudia.eu email account (used for SMTP authentication).</p>
                         </td>
                     </tr>
                 </table>
@@ -1131,7 +1131,7 @@ class Villa_Claudia_Docs {
         // Send email
         $headers = array(
             'Content-Type: text/plain; charset=UTF-8',
-            'From: Villa Claudia <administration@villa-claudia.eu>'
+            'From: Villa Claudia <no-reply@villa-claudia.eu>'
         );
         
         $city_email = get_option('villa_claudia_city_email', 'grad@makarska.hr');
@@ -1228,7 +1228,7 @@ class Villa_Claudia_Docs {
                     // Send email
                     $headers = array(
                         'Content-Type: text/plain; charset=UTF-8',
-                        'From: Villa Claudia <administration@villa-claudia.eu>'
+                        'From: Villa Claudia <no-reply@villa-claudia.eu>'
                     );
                     $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
                     
@@ -1434,9 +1434,9 @@ Villa Claudia`;
         $phpmailer->SMTPAuth = true;
         $phpmailer->Port = 465;
         $phpmailer->SMTPSecure = 'ssl';
-        $phpmailer->Username = 'administration@villa-claudia.eu';
+        $phpmailer->Username = 'no-reply@villa-claudia.eu';
         $phpmailer->Password = get_option('villa_claudia_smtp_password', '');
-        $phpmailer->From = 'administration@villa-claudia.eu';
+        $phpmailer->From = 'no-reply@villa-claudia.eu';
         $phpmailer->FromName = 'Villa Claudia';
     }
 
