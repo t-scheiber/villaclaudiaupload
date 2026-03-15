@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, unstable_rethrow } from 'next/navigation';
 import DocumentUploadForm from '@/components/document-upload-form';
 
 async function validateBooking(secureBookingId: string) {
@@ -106,6 +106,7 @@ export default async function BookingUploadPage({
       </div>
     );
   } catch (error) {
+    unstable_rethrow(error);
     console.error('Error in BookingUploadPage:', error);
     return <div className="container mx-auto py-20 text-center">
       <h1 className="text-3xl font-bold mb-6 text-red-600">Error Loading Page</h1>

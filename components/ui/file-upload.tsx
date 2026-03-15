@@ -113,20 +113,18 @@ export function FileUpload({
     onFilesSelected(updatedFiles);
   }, [files, onFilesSelected]);
 
-  const dismissError = useCallback((index: number) => {
-    const updatedErrors = [...errors];
-    updatedErrors.splice(index, 1);
-    setErrors(updatedErrors);
-  }, [errors]);
+  const dismissError = useCallback((error: string) => {
+    setErrors(prev => prev.filter(e => e !== error));
+  }, []);
 
   return (
     <div className={className}>
       {errors.length > 0 && (
         <div className="mb-4">
-          {errors.map((error, index) => (
-            <div key={index} className="flex items-center p-3 bg-red-50 border border-red-200 rounded text-red-700 mb-2">
+          {errors.map((error) => (
+            <div key={error} className="flex items-center p-3 bg-red-50 border border-red-200 rounded text-red-700 mb-2">
               <span className="flex-1">{error}</span>
-              <button onClick={() => dismissError(index)} className="ml-2">
+              <button onClick={() => dismissError(error)} className="ml-2">
                 <X size={16} />
               </button>
             </div>
@@ -170,13 +168,13 @@ export function FileUpload({
       {files.length > 0 && (
         <div className="mt-4 space-y-2">
           {files.map((file, index) => (
-            <div key={index} className="flex items-center p-2 bg-[#fff4d8] border border-amber-300 rounded">
+            <div key={`${file.name}-${file.lastModified}`} className="flex items-center p-2 bg-[#fff4d8] border border-amber-300 rounded">
               <File size={20} className="text-amber-700 mr-2" />
               <span className="flex-1 truncate">{file.name}</span>
               <span className="text-xs text-amber-700 mx-2">
                 {(file.size / 1024 / 1024).toFixed(2)} MB
               </span>
-              <button 
+              <button
                 onClick={() => removeFile(index)}
                 className="p-1 text-amber-500 hover:text-red-500"
               >

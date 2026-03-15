@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
 // Email configuration
-export const emailConfig = {
+const emailConfig = {
   host: process.env.EMAIL_HOST,
   port: parseInt(process.env.EMAIL_PORT || "587"),
   secure: false, // Use STARTTLS
@@ -22,7 +22,7 @@ export const emailConfig = {
 };
 
 // Validate email configuration
-export function validateEmailConfig() {
+function validateEmailConfig() {
   const requiredFields = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASSWORD'];
   const missingFields = requiredFields.filter(field => !process.env[field]);
   
@@ -62,7 +62,7 @@ export function createEmailTransporter() {
 }
 
 // Create magic link for document upload
-export function createDocumentUploadLink(bookingId: string, guestEmail: string): string {
+function createDocumentUploadLink(bookingId: string, guestEmail: string): string {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const encodedBookingId = encodeURIComponent(bookingId);
   const encodedEmail = encodeURIComponent(guestEmail);
