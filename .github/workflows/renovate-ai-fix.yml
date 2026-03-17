@@ -25,14 +25,14 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - name: Checkout Renovate branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
           token: ${{ secrets.RENOVATE_TOKEN }}
 
       - name: Checkout shared Renovate config
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: t-scheiber/renovate-config
           ref: main
