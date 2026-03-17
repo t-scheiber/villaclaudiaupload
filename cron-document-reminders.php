@@ -25,7 +25,7 @@ log_message("====== Document Reminders Cron Started ======");
 
 // Set your environment variables
 $api_url = 'https://documents.villa-claudia.eu/api/cron/document-reminders';
-$cron_secret = 'REDACTED_CRON_SECRET'; // Use the same secret as in your .env.local
+$cron_secret = getenv('CRON_SECRET') ?: die("Error: CRON_SECRET environment variable not set\n");
 
 log_message("Calling API: $api_url");
 
