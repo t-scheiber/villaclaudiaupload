@@ -14,6 +14,7 @@ if (!defined('ABSPATH')) {
 
 class Villa_Claudia_Docs {
     private $api_key;
+    private $env_config = null;
     
     public function __construct() {
         // Initialize the plugin
@@ -50,9 +51,91 @@ class Villa_Claudia_Docs {
         // Add new handler for retrieving booking dates
         add_action('wp_ajax_villa_claudia_get_booking_dates', array($this, 'ajax_get_booking_dates'));
     }
+
+    private function get_config_value($option_name, $env_keys = array(), $default = '') {
+        foreach ($env_keys as $env_key) {
+            $value = $this->get_env_value($env_key);
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        $option_value = get_option($option_name, null);
+        if ($option_value !== null && $option_value !== '') {
+            return $option_value;
+        }
+
+        return $default;
+    }
+
+    private function get_env_value($key) {
+        $value = getenv($key);
+        if ($value !== false && $value !== '') {
+            return $value;
+        }
+
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+            return $_ENV[$key];
+        }
+
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+            return $_SERVER[$key];
+        }
+
+        $config = $this->load_env_config();
+        if (isset($config[$key]) && $config[$key] !== '') {
+            return $config[$key];
+        }
+
+        return null;
+    }
+
+    private function load_env_config() {
+        if ($this->env_config !== null) {
+            return $this->env_config;
+        }
+
+        $this->env_config = array();
+        $paths = array_filter(array(
+            getenv('VILLA_CLAUDIA_DOCS_ENV_FILE'),
+            (defined('WP_CONTENT_DIR') ? dirname(WP_CONTENT_DIR) : '') . '/villa-claudia-docs.env',
+            (defined('ABSPATH') ? dirname(ABSPATH) : '') . '/villa-claudia-docs.env',
+            rtrim(getenv('HOME') ?: '', '/\\') . '/.villa-claudia-docs.env',
+        ));
+
+        foreach ($paths as $path) {
+            if (!is_readable($path)) {
+                continue;
+            }
+
+            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines === false) {
+                continue;
+            }
+
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '' || strpos($line, '#') === 0 || strpos($line, '=') === false) {
+                    continue;
+                }
+
+                list($name, $value) = array_map('trim', explode('=', $line, 2));
+                $this->env_config[$name] = trim($value, "\"'");
+            }
+
+            break;
+        }
+
+        return $this->env_config;
+    }
     
     public function init() {
-        $this->api_key = get_option('villa_claudia_api_key', '');
+        $this->api_key = $this->get_config_value(
+            'villa_claudia_api_key',
+            array('VILLA_CLAUDIA_API_KEY', 'WORDPRESS_API_KEY'),
+            ''
+        );
+
         if (empty($this->api_key)) {
             // Generate a secure random API key if none exists
             $this->api_key = wp_generate_password(32, false);
@@ -314,6 +397,7 @@ class Villa_Claudia_Docs {
                                    name="villa_claudia_smtp_password" 
                                    value="<?php echo esc_attr(get_option('villa_claudia_smtp_password')); ?>" />
                             <p class="description">Password for the no-reply@villa-claudia.eu email account (used for SMTP authentication).</p>
+                            <p class="description">If present, values from the server env file override the stored WordPress settings.</p>
                         </td>
                     </tr>
                 </table>
@@ -324,13 +408,13 @@ class Villa_Claudia_Docs {
             <p>To connect the Villa Claudia Document Upload system, add these settings to your Environment Variables (file):</p>
             <code>
             WORDPRESS_API_URL=<?php echo esc_url(get_rest_url(null, 'villa-claudia/v1')); ?><br>
-            WORDPRESS_API_KEY=<?php echo esc_attr(get_option('villa_claudia_api_key')); ?>
+            WORDPRESS_API_KEY=<?php echo esc_attr($this->get_config_value('villa_claudia_api_key', array('VILLA_CLAUDIA_API_KEY', 'WORDPRESS_API_KEY'), '')); ?>
             </code>
             
             <h3>Testing the API</h3>
             <p>You can test if the API is working correctly by making a request to:</p>
             <code><?php echo esc_url(get_rest_url(null, 'villa-claudia/v1/ping')); ?></code>
-            <p>Include the header: <code>x-api-key: <?php echo esc_attr(get_option('villa_claudia_api_key')); ?></code></p>
+            <p>Include the header: <code>x-api-key: <?php echo esc_attr($this->get_config_value('villa_claudia_api_key', array('VILLA_CLAUDIA_API_KEY', 'WORDPRESS_API_KEY'), '')); ?></code></p>
             
             <p>To test with a specific booking ID:</p>
             <code><?php echo esc_url(get_rest_url(null, 'villa-claudia/v1/booking/BOOKING_ID')); ?></code>
@@ -1134,7 +1218,11 @@ class Villa_Claudia_Docs {
             'From: Villa Claudia <no-reply@villa-claudia.eu>'
         );
         
-        $city_email = get_option('villa_claudia_city_email', 'grad@makarska.hr');
+        $city_email = $this->get_config_value(
+            'villa_claudia_city_email',
+            array('VILLA_CLAUDIA_CITY_EMAIL'),
+            'grad@makarska.hr'
+        );
         
         // Check if the property is in Valentici
         $property_address = get_post_meta($booking_id, 'mphb_property_address', true);
@@ -1300,7 +1388,7 @@ class Villa_Claudia_Docs {
                         <th scope="row"><label for="recipient_email">Recipient Email</label></th>
                         <td>
                             <input type="email" name="recipient_email" id="recipient_email" class="regular-text" 
-                                   value="<?php echo esc_attr(get_option('villa_claudia_city_email', 'grad@makarska.hr')); ?>" required>
+                                   value="<?php echo esc_attr($this->get_config_value('villa_claudia_city_email', array('VILLA_CLAUDIA_CITY_EMAIL'), 'grad@makarska.hr')); ?>" required>
                             <p class="description">Enter the email address where the documents should be sent.</p>
                         </td>
                     </tr>
@@ -1435,7 +1523,11 @@ Villa Claudia`;
         $phpmailer->Port = 465;
         $phpmailer->SMTPSecure = 'ssl';
         $phpmailer->Username = 'no-reply@villa-claudia.eu';
-        $phpmailer->Password = get_option('villa_claudia_smtp_password', '');
+        $phpmailer->Password = $this->get_config_value(
+            'villa_claudia_smtp_password',
+            array('VILLA_CLAUDIA_SMTP_PASSWORD', 'SMTP_PASSWORD', 'EMAIL_PASS'),
+            ''
+        );
         $phpmailer->From = 'no-reply@villa-claudia.eu';
         $phpmailer->FromName = 'Villa Claudia';
     }
