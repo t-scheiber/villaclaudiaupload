@@ -43,3 +43,9 @@ bun.lockb
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.claude/
+.vscode/
+.cursor/
+.chatgpt/
+.gemini/
