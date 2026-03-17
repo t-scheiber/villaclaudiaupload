@@ -23,9 +23,25 @@ function log_message($message) {
 
 log_message("====== Document Reminders Cron Started ======");
 
-// Set your environment variables
+// Load secret: env var first, then local .env file fallback (for Hostinger cron)
 $api_url = 'https://documents.villa-claudia.eu/api/cron/document-reminders';
-$cron_secret = getenv('CRON_SECRET') ?: die("Error: CRON_SECRET environment variable not set\n");
+$cron_secret = getenv('CRON_SECRET');
+if (!$cron_secret) {
+    $env_file = __DIR__ . '/.env.cron';
+    if (file_exists($env_file)) {
+        $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos($line, '#') === 0) continue;
+            if (strpos($line, 'CRON_SECRET=') === 0) {
+                $cron_secret = trim(substr($line, strlen('CRON_SECRET=')), "\"' ");
+                break;
+            }
+        }
+    }
+}
+if (!$cron_secret) {
+    die("Error: CRON_SECRET not found in env or .env.cron file\n");
+}
 
 log_message("Calling API: $api_url");
 
