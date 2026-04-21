@@ -122,7 +122,7 @@ jobs:
         if: steps.detect.outputs.needs_node == 'true'
         uses: actions/setup-node@v6
         with:
-          node-version: 24.14.1
+          node-version: 24.15.0
 
       - name: Set up Bun
         if: steps.detect.outputs.needs_bun == 'true'
