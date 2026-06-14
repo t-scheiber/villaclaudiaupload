@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Restaurant Posts Zigzag
  * Description: Displays restaurant posts in a zigzag layout for both default WordPress and Divi editor
- * Version: 1.4.3
+ * Version: 1.4.4
  * Author: Thomas Scheiber
  * Text Domain: restaurant-posts-zigzag
  */
@@ -115,6 +115,13 @@ function rpz_enqueue_scripts() {
 .rpz-excerpt b {
     font-weight: 700;
     color: #333;
+}
+.rpz-excerpt a {
+    color: #0073aa;
+    text-decoration: underline;
+}
+.rpz-excerpt a:hover {
+    color: #005177;
 }
 .rpz-excerpt em,
 .rpz-excerpt i {
@@ -245,35 +252,23 @@ add_action('wp_enqueue_scripts', 'rpz_enqueue_scripts');
  * @param int $excerpt_length Optional excerpt length
  * @return string Formatted content with preserved HTML
  */
-function rpz_get_formatted_content($post_id, $excerpt_length = 55) {
-    // Get the full post content with formatting
+function rpz_get_formatted_content($post_id, $excerpt_length = 0) {
     $content = '';
-    
-    // Check if we should use an excerpt or full content
+
     if (has_excerpt($post_id)) {
-        // If there's a manual excerpt, use it with HTML preserved
         $content = get_post_field('post_excerpt', $post_id);
+        $content = wpautop($content);
     } else {
-        // Get the full content
-        $post = get_post($post_id);
-        $content = $post->post_content;
-        
-        // Check for more tag
+        $content = get_post_field('post_content', $post_id);
+
         if (strpos($content, '<!--more-->') !== false) {
             $content = explode('<!--more-->', $content)[0];
         }
+
+        // Render Gutenberg blocks and shortcodes the same way as the single post view.
+        $content = apply_filters('the_content', $content);
     }
-    
-    // Process shortcodes if any
-    $content = do_shortcode($content);
-    
-    // Convert any remaining line breaks to <br> tags before applying wpautop
-    $content = nl2br($content);
-    
-    // Apply paragraph tags to text blocks
-    $content = wpautop($content);
-    
-    // Allow specific HTML tags
+
     $allowed_html = array(
         'strong' => array(),
         'b'      => array(),
@@ -288,10 +283,11 @@ function rpz_get_formatted_content($post_id, $excerpt_length = 55) {
         'ol'     => array(),
         'li'     => array(),
         'a'      => array(
-            'href'  => array(),
-            'title' => array(),
-            'class' => array(),
+            'href'   => array(),
+            'title'  => array(),
+            'class'  => array(),
             'target' => array(),
+            'rel'    => array(),
         ),
         'span'   => array(
             'style' => array(),
@@ -302,16 +298,13 @@ function rpz_get_formatted_content($post_id, $excerpt_length = 55) {
             'class' => array(),
         ),
     );
-    
-    // Filter the content to preserve specified HTML
+
     $content = wp_kses($content, $allowed_html);
-    
-    // If we need to truncate the content (for long posts)
-    if ($excerpt_length > 0 && !has_excerpt($post_id) && strpos($content, '<!--more-->') === false) {
-        // Manually truncate content while preserving HTML
+
+    if ($excerpt_length > 0 && !has_excerpt($post_id)) {
         $content = rpz_truncate_html($content, $excerpt_length);
     }
-    
+
     return $content;
 }
 
@@ -324,27 +317,41 @@ function rpz_get_formatted_content($post_id, $excerpt_length = 55) {
  * @return string Truncated HTML
  */
 function rpz_truncate_html($html, $limit, $ellipsis = '...') {
-    // Load HTML into DOMDocument
-    $dom = new DOMDocument();
-    libxml_use_internal_errors(true); // Suppress warnings for malformed HTML
-    $dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'));
-    libxml_clear_errors();
-    
-    // Get text content
-    $text = $dom->textContent;
-    
-    // If text is already shorter than limit, return original HTML
-    $words = preg_split('/\s+/', $text);
+    if ($limit <= 0) {
+        return $html;
+    }
+
+    $words = preg_split('/\s+/u', wp_strip_all_tags($html), -1, PREG_SPLIT_NO_EMPTY);
+
     if (count($words) <= $limit) {
         return $html;
     }
-    
-    // Otherwise, we need to truncate
-    $truncated_text = implode(' ', array_slice($words, 0, $limit)) . $ellipsis;
-    
-    // For simple truncation, we'll just wrap the truncated text in paragraph tags
-    // This is a basic approach - for complex HTML, a more sophisticated solution would be needed
-    return '<p>' . $truncated_text . '</p>';
+
+    // Keep whole paragraphs so bold text, links, and line breaks stay intact.
+    if (preg_match_all('/<p[^>]*>.*?<\/p>/is', $html, $matches) && !empty($matches[0])) {
+        $result = '';
+        $word_count = 0;
+
+        foreach ($matches[0] as $paragraph) {
+            $paragraph_words = preg_split('/\s+/u', wp_strip_all_tags($paragraph), -1, PREG_SPLIT_NO_EMPTY);
+
+            if ($word_count > 0 && ($word_count + count($paragraph_words)) > $limit) {
+                break;
+            }
+
+            $result .= $paragraph;
+            $word_count += count($paragraph_words);
+        }
+
+        if (!empty($result)) {
+            if ($word_count < count($words)) {
+                $result = preg_replace('/<\/p>\s*$/i', ' ' . esc_html($ellipsis) . '</p>', $result, 1);
+            }
+            return $result;
+        }
+    }
+
+    return $html;
 }
 
 // Register shortcode [restaurant_zigzag]

@@ -1,0 +1,21 @@
+INSTALL / RECOVERY
+==================
+
+If the site shows a critical error:
+
+1. In Hostinger File Manager go to: wp-content/plugins/
+2. DELETE the entire folder: villa-claudia-rates-display
+3. Also DELETE if present: rates-display-plugin
+4. Reload the site - it should work again
+
+Then install this zip fresh:
+- Plugins -> Add New -> Upload Plugin
+- Upload villa-claudia-rates-display.zip
+- Activate
+
+On the Rates page use: [villa_claudia_rates]
+
+IMPORTANT: Only one plugin file should exist in the folder:
+  villa-claudia-rates-display.php
+
+Delete any old file named mphb-divi-rates-display.php if you see it.
