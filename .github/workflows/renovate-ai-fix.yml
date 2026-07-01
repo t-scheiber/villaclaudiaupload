@@ -59,12 +59,14 @@ jobs:
       - name: Merge current base branch and resolve conflicts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "Renovate AI Fixer"
           git config user.email "renovate-ai-fixer@users.noreply.github.com"
+          gh auth setup-git
           git fetch origin "$BASE_REF"
           if ! git merge --no-commit --no-ff "origin/$BASE_REF"; then
             node .renovate-config/scripts/ai-renovate-fix.mjs --conflicts --attempts 3
@@ -259,11 +261,3 @@ jobs:
           fi
           gh auth setup-git
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
-      - name: Enable auto-merge
-        if: |
-          always() && !cancelled() &&
-          (steps.detect.outputs.supported != 'true' || steps.final_validate.outcome == 'success')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
