@@ -14,7 +14,7 @@
     "clsx": "^2.1.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.23.0",
-    "next": "16.2.10",
+    "next": "16.2.11",
     "node-cron": "^4.5.0",
     "nodemailer": "^9.0.3",
     "react": "^19.2.7",
