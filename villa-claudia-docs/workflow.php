@@ -78,6 +78,23 @@ trait Villa_Claudia_Workflow {
         return false;
     }
 
+    private function remove_stored_document($id, $filename) {
+        foreach (get_post_meta($id, 'villa_claudia_document') as $document) {
+            if (!is_array($document) || ($document['filename'] ?? '') !== $filename) { continue; }
+            $path = $this->document_path($id, $filename);
+            if ($path && !unlink($path)) {
+                return new WP_Error('delete_failed', 'The document file could not be deleted. Please retry.', array('status' => 500));
+            }
+            // Delete only this exact record. A concurrent upload must keep its metadata.
+            if (!delete_post_meta($id, 'villa_claudia_document', $document)) {
+                return new WP_Error('delete_failed', 'The document record changed or could not be deleted. Refresh and retry.', array('status' => 409));
+            }
+            update_post_meta($id, 'villa_claudia_has_documents', $this->has_stored_documents($id));
+            return true;
+        }
+        return new WP_Error('document_not_found', 'Document not found.', array('status' => 404));
+    }
+
     public function handle_document_upload($request) {
         $id = $this->resolve_upload_booking($request->get_param('uploadToken'));
         if (is_wp_error($id)) { return $id; }
