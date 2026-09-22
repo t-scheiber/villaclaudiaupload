@@ -196,18 +196,19 @@ type SubmitState = {
   isSubmitting: boolean;
   error: string;
   success: boolean;
+  message: string;
 };
 
 type SubmitAction =
   | { type: 'START' }
-  | { type: 'SUCCESS' }
+  | { type: 'SUCCESS'; message: string }
   | { type: 'ERROR'; message: string };
 
 function submitReducer(state: SubmitState, action: SubmitAction): SubmitState {
   switch (action.type) {
-    case 'START': return { isSubmitting: true, error: '', success: false };
-    case 'SUCCESS': return { isSubmitting: false, error: '', success: true };
-    case 'ERROR': return { isSubmitting: false, error: action.message, success: false };
+    case 'START': return { isSubmitting: true, error: '', success: false, message: '' };
+    case 'SUCCESS': return { isSubmitting: false, error: '', success: true, message: action.message };
+    case 'ERROR': return { isSubmitting: false, error: action.message, success: false, message: '' };
     default: return state;
   }
 }
@@ -235,6 +236,7 @@ export default function DocumentUploadForm({
     isSubmitting: false,
     error: '',
     success: false,
+    message: '',
   });
 
   const handleFilesSelected = (files: File[], travelerIndex: number) => {
@@ -306,12 +308,12 @@ export default function DocumentUploadForm({
         body: formData
       });
 
-      if (!response.ok) {
-        const data = await response.json();
+      const data = await response.json();
+      if (!response.ok || data.success !== true || data.wordpressStorage !== true) {
         throw new Error(data.error || "Upload failed");
       }
 
-      dispatch({ type: 'SUCCESS' });
+      dispatch({ type: 'SUCCESS', message: data.message || 'Your documents have been saved.' });
     } catch (error) {
       console.error("Upload error:", error);
       dispatch({ type: 'ERROR', message: error instanceof Error ? error.message : "Upload failed" });
@@ -322,7 +324,7 @@ export default function DocumentUploadForm({
     return (
       <div className="bg-white rounded-lg shadow-md p-8">
         <h2 className="text-2xl font-semibold text-green-600 mb-4">Documents Uploaded Successfully!</h2>
-        <p className="mb-4">Thank you for uploading your travel documents.</p>
+        <p className="mb-4">{submitState.message}</p>
         <p>We look forward to welcoming you at Villa Claudia.</p>
       </div>
     );

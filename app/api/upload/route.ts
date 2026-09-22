@@ -1,378 +1,86 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createEmailTransporter } from "@/lib/email-config";
+import { NextRequest, NextResponse } from 'next/server';
+import { createEmailTransporter } from '@/lib/email-config';
+import { privateHeaders, resolveBooking, wordpress, WorkflowError } from '@/lib/wordpress';
 
-interface FileMetadata {
-  travelerIndex: number;
-  travelerName: string;
-  documentType: string;
-  documentNumber: string;
+interface StoredResult { success: boolean; storedCount: number; bookingId: number }
+interface DocumentInfo { travelerName: string; documentType: string; documentNumber: string }
+
+async function boundedFormData(request: NextRequest) {
+  const limit = 27 * 1024 * 1024;
+  if (Number(request.headers.get('content-length') || 0) > limit) throw new WorkflowError(413, 'Upload exceeds the 25 MiB document limit.');
+  if (!request.body) throw new WorkflowError(400, 'Missing upload.');
+  const reader = request.body.getReader();
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > limit) { await reader.cancel(); throw new WorkflowError(413, 'Upload exceeds the 25 MiB document limit.'); }
+      chunks.push(new Uint8Array(value));
+    }
+    return await new Response(new Blob(chunks), { headers: { 'Content-Type': request.headers.get('content-type') || '' } }).formData();
+  } catch (error) {
+    if (error instanceof WorkflowError) throw error;
+    throw new WorkflowError(400, 'Invalid upload form.');
+  } finally { reader.releaseLock(); }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const secureBookingId = formData.get("bookingId") as string;
-    const guestName = formData.get("guestName") as string;
-    const email = formData.get("email") as string;
-    const travelersJson = formData.get("travelers") as string;
-    const travelers = travelersJson ? JSON.parse(travelersJson) : [];
-    
-    if (!secureBookingId) {
-      return NextResponse.json(
-        { error: "Missing booking ID" },
-        { status: 400 }
-      );
+    const form = await boundedFormData(request);
+    const token = form.get('bookingId');
+    const booking = await resolveBooking(token);
+    const files = form.getAll('files');
+    if (files.length < 1 || files.length > 8 || files.some(file => !(file instanceof File))) {
+      throw new WorkflowError(400, 'Please upload between one and eight documents.');
     }
-
-    // Validate the secure booking ID format
-    const bookingIdMatch = secureBookingId.match(/^(\d+?)(\d{8})(\d{8})?$/);
-    if (!bookingIdMatch) {
-      return NextResponse.json(
-        { error: "Invalid booking ID format" },
-        { status: 400 }
-      );
-    }
-    
-    // Extract the actual booking ID for database lookup
-    const bookingId = bookingIdMatch[1];
-
-    if (!guestName) {
-      return NextResponse.json(
-        { error: "Missing guest name" },
-        { status: 400 }
-      );
-    }
-
-    const files = formData.getAll("files") as File[];
-    
-    if (!files || files.length === 0) {
-      return NextResponse.json(
-        { error: "No files provided" },
-        { status: 400 }
-      );
-    }
-
-    // Calculate total file size
-    const totalFileSize = files.reduce((total, file) => total + file.size, 0);
-    const maxTotalSize = 25 * 1024 * 1024; // 25MB
-    
-    if (totalFileSize > maxTotalSize) {
-      return NextResponse.json(
-        { error: `Total file size (${(totalFileSize / (1024 * 1024)).toFixed(2)}MB) exceeds 25MB limit. Please reduce file sizes or upload fewer files.` },
-        { status: 400 }
-      );
-    }
-
-    // Process file metadata
-    const fileMetadataEntries = Array.from(formData.entries())
-      .filter(([key]) => key.startsWith('fileMetadata['))
-      .map(([key, value]) => {
-        const metadata = JSON.parse(value as string) as FileMetadata;
-        const match = key.match(/fileMetadata\[(\d+)\]/);
-        if (match) {
-          const index = parseInt(match[1]);
-          return { index, metadata };
-        }
-        return null;
-      })
-      .filter(item => item !== null)
-      .sort((a, b) => a!.index - b!.index);
-
-    // Define the FileInfo type
-    type FileInfo = {
-      originalName: string;
-      arrayBuffer: ArrayBuffer;
-      size: number;
-      type: string;
-      travelerName: string;
-      documentType: string;
-      documentNumber: string;
-    };
-
-    // Process files in memory
-    const fileInfos: FileInfo[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      // Get associated metadata
-      const fileInfo = fileMetadataEntries.find(entry => entry?.index === i);
-      const travelerName = fileInfo?.metadata.travelerName || "Unknown";
-      
-      // Validate file type
-      const validTypes = ["image/jpeg", "image/png", "application/pdf"];
-      if (!validTypes.includes(file.type)) {
-        return NextResponse.json(
-          { error: `File type ${file.type} is not supported. Please upload JPG, JPEG, PNG, or PDF files only.` },
-          { status: 400 }
-        );
+    const documents = files as File[];
+    if (documents.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024) throw new WorkflowError(413, 'Total document size exceeds 25 MiB.');
+    const upstream = new FormData();
+    upstream.set('uploadToken', token as string);
+    const metadata: DocumentInfo[] = [];
+    for (const [index, file] of documents.entries()) {
+      if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type) || !file.size || file.size > 10 * 1024 * 1024) {
+        throw new WorkflowError(400, 'Use JPEG, PNG or PDF files no larger than 10 MiB each.');
       }
-
-      // Validate file size (10MB max)
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (file.size > maxSize) {
-        return NextResponse.json(
-          { error: "File size exceeds 10MB limit" },
-          { status: 400 }
-        );
+      let info: DocumentInfo;
+      try { info = JSON.parse(String(form.get(`fileMetadata[${index}]`))); }
+      catch { throw new WorkflowError(400, 'Invalid document details.'); }
+      if (!info || typeof info.travelerName !== 'string' || !info.travelerName.trim() || info.travelerName.length > 200 ||
+          typeof info.documentNumber !== 'string' || info.documentNumber.length > 100 ||
+          !['passport', 'id_card', 'residence_permit', 'drivers_license'].includes(info.documentType)) {
+        throw new WorkflowError(400, 'Please complete the details for each traveler.');
       }
-      
-      const documentType = fileInfo?.metadata.documentType || "passport";
-      const documentNumber = fileInfo?.metadata.documentNumber || "";
-      
-      // Get file buffer in memory
-      const buffer = await file.arrayBuffer();
-      
-      fileInfos.push({
-        originalName: file.name,
-        arrayBuffer: buffer,
-        size: file.size,
-        type: file.type,
-        travelerName: travelerName,
-        documentType: documentType,
-        documentNumber: documentNumber
+      metadata.push(info);
+      upstream.append(`file_${index}`, file);
+      upstream.set(`file_info_file_${index}`, JSON.stringify(info));
+    }
+    const result = await wordpress<StoredResult>('/upload-documents', { method: 'POST', body: upstream });
+    if (result.success !== true || result.storedCount !== documents.length || result.bookingId !== booking.bookingId) {
+      throw new WorkflowError(502, 'Document storage was not confirmed. Please contact us before retrying.');
+    }
+    let notificationSent = false;
+    try {
+      const mail = await createEmailTransporter().sendMail({
+        from: process.env.EMAIL_FROM || 'Villa Claudia <administration@villa-claudia.eu>',
+        to: process.env.ADMIN_EMAIL || 'administration@villa-claudia.eu',
+        subject: `[Villa Claudia] Travel Documents Uploaded - Booking ${booking.bookingId}`,
+        text: `Documents are saved in WordPress for booking ${booking.bookingId}.\nGuest: ${booking.guestName}\nEmail: ${booking.guestEmail}\n\n` +
+          metadata.map(info => `${info.travelerName}: ${info.documentType} ${info.documentNumber}`).join('\n'),
+        attachments: await Promise.all(documents.map(async file => ({
+          filename: file.name, content: Buffer.from(await file.arrayBuffer()), contentType: file.type,
+        }))),
       });
-    }
-
-    // Upload documents to WordPress
-    const wpUploadResult = await uploadToWordPress(bookingId, fileInfos);
-    
-    if (!wpUploadResult.success) {
-      console.error("WordPress upload failed:", wpUploadResult.error);
-      // Continue to email the documents even if WordPress upload fails
-    }
-
-    // Send notification email to administrator
-    await sendAdminNotification({
-      bookingId,
-      guestName,
-      guestEmail: email || "Not provided",
-      travelers: travelers,
-      files: fileInfos
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      message: "Files uploaded successfully",
-      files: fileInfos.map(f => ({
-        originalName: f.originalName,
-        size: f.size,
-        type: f.type,
-        travelerName: f.travelerName,
-        documentType: f.documentType,
-        documentNumber: f.documentNumber
-      })),
-      bookingId,
-      guestName,
-      wordpressStorage: wpUploadResult.success,
-      travelers: travelers
-    });
+      notificationSent = Boolean(mail.accepted?.length);
+    } catch { console.error('Documents stored; admin notification failed.', { bookingId: booking.bookingId }); }
+    return NextResponse.json({
+      success: true, wordpressStorage: true, storedCount: result.storedCount, notificationSent,
+      message: notificationSent ? 'Your documents have been saved.' : 'Your documents have been saved, but the email notification could not be sent. Please contact Villa Claudia; you do not need to upload again.',
+    }, { status: 201, headers: privateHeaders });
   } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json(
-      { error: "Failed to upload files" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: error instanceof WorkflowError ? error.message : 'Documents could not be uploaded. Please try again.' },
+      { status: error instanceof WorkflowError ? error.status : 500, headers: privateHeaders });
   }
 }
-
-/**
- * Upload documents to WordPress via the API
- */
-async function uploadToWordPress(
-  bookingId: string, 
-  files: {
-    originalName: string;
-    arrayBuffer: ArrayBuffer;
-    size: number;
-    type: string;
-    travelerName: string;
-    documentType: string;
-    documentNumber: string;
-  }[]
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    if (!process.env.WORDPRESS_API_URL || !process.env.WORDPRESS_API_KEY) {
-      throw new Error("WordPress API configuration missing");
-    }
-
-    const formData = new FormData();
-    formData.append('bookingId', bookingId);
-    
-    // Add each file to the form data
-    files.forEach((file, index) => {
-      const fileKey = `file_${index}`;
-      const fileBlob = new Blob([file.arrayBuffer], { type: file.type });
-      const fileObject = new File([fileBlob], file.originalName, { type: file.type });
-      
-      formData.append(fileKey, fileObject);
-      formData.append(`file_info_${fileKey}`, JSON.stringify({
-        travelerName: file.travelerName,
-        documentType: file.documentType,
-        documentNumber: file.documentNumber
-      }));
-    });
-    
-    const response = await fetch(`${process.env.WORDPRESS_API_URL}/upload-documents`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.WORDPRESS_API_KEY
-      },
-      body: formData
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`WordPress API error (${response.status}): ${errorText}`);
-    }
-    
-    // Successful response
-    return { success: true };
-  } catch (error) {
-    console.error("Error uploading to WordPress:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error" 
-    };
-  }
-}
-
-/**
- * Send notification email to administrator with the uploaded documents
- */
-async function sendAdminNotification({
-  bookingId,
-  guestName,
-  guestEmail,
-  travelers,
-  files
-}: {
-  bookingId: string;
-  guestName: string;
-  guestEmail: string;
-  travelers: {
-    name: string;
-    documentType: string;
-    documentNumber: string;
-  }[];
-  files: {
-    originalName: string;
-    arrayBuffer: ArrayBuffer;
-    size: number;
-    type: string;
-    travelerName: string;
-    documentType: string;
-    documentNumber: string;
-  }[];
-}) {
-  try {
-    const transporter = createEmailTransporter();
-    
-    // Format file sizes for display
-    const formatFileSize = (bytes: number) => {
-      if (bytes < 1024) return bytes + " B";
-      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-      else return (bytes / 1048576).toFixed(1) + " MB";
-    };
-    
-    // Create HTML for the files table
-    const filesHtml = files.map(file => `
-      <tr>
-        <td style="padding: 8px; border: 1px solid #ddd;">${file.travelerName}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${getDocumentTypeName(file.documentType)}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${file.documentNumber}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${file.originalName}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${file.type}</td>
-        <td style="padding: 8px; border: 1px solid #ddd;">${formatFileSize(file.size)}</td>
-      </tr>
-    `).join('');
-    
-    // Create HTML for travelers list
-    const travelersHtml = travelers.map(traveler => 
-      `<li style="margin-bottom: 5px;">${traveler.name} (${getDocumentTypeName(traveler.documentType)}: ${traveler.documentNumber})</li>`
-    ).join('');
-    
-    // Email content with booking and document details
-    const emailContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #1e40af; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">Villa Claudia - Document Upload Notification</h1>
-        </div>
-        <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
-          <h2>New Documents Uploaded</h2>
-          
-          <h3>Booking Information</h3>
-          <p><strong>Booking ID:</strong> ${bookingId}</p>
-          <p><strong>Lead Guest Name:</strong> ${guestName}</p>
-          <p><strong>Contact Email:</strong> ${guestEmail}</p>
-          
-          <h3>Travelers</h3>
-          <ul style="padding-left: 20px;">
-            ${travelersHtml}
-          </ul>
-          
-          <h3>Documents</h3>
-          <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-            <thead>
-              <tr>
-                <th style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: #f2f2f2;">Traveler Name</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: #f2f2f2;">Document Type</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: #f2f2f2;">Document Number</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: #f2f2f2;">Filename</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: #f2f2f2;">Type</th>
-                <th style="padding: 8px; text-align: left; border: 1px solid #ddd; background-color: #f2f2f2;">Size</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filesHtml}
-            </tbody>
-          </table>
-          
-          <p style="margin-top: 20px;">
-            The uploaded documents are attached to this email and also securely stored in the WordPress admin system.
-            You can view them in the WordPress admin by editing the booking.
-          </p>
-          
-          <p>This is an automated notification. Please do not reply to this email.</p>
-        </div>
-        <div style="background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #6b7280;">
-          <p>© ${new Date().getFullYear()} Villa Claudia. All rights reserved.</p>
-          <p><a href="https://villa-claudia.eu" style="color: #6b7280; text-decoration: underline;">villa-claudia.eu</a></p>
-        </div>
-      </div>
-    `;
-
-    // Build email attachments from in-memory files
-    const attachments = files.map(file => ({
-      filename: `${file.travelerName} - ${getDocumentTypeName(file.documentType)} ${file.documentNumber ? '(' + file.documentNumber + ')' : ''} - ${file.originalName}`,
-      content: Buffer.from(file.arrayBuffer),
-      contentType: file.type
-    }));
-
-    // Send the email
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || "Villa Claudia <no-reply@villa-claudia.eu>",
-      to: process.env.ADMIN_EMAIL || "administration@villa-claudia.eu",
-      subject: `[Villa Claudia] Travel Documents Uploaded - Booking ${bookingId}`,
-      html: emailContent,
-      attachments // Attach the uploaded files
-    });
-    
-    console.log(`Admin notification email sent for booking ${bookingId}`);
-    return true;
-  } catch (error) {
-    console.error("Failed to send admin notification email:", error);
-    // Don't throw the error, as we don't want to fail the upload if just the notification fails
-    return false;
-  }
-}
-
-// Add a helper function to get human-readable document type names
-function getDocumentTypeName(type: string): string {
-  const types: Record<string, string> = {
-    passport: "Passport",
-    id_card: "National ID Card",
-    residence_permit: "Residence Permit",
-    drivers_license: "Driver's License"
-  };
-  return types[type] || type;
-} 

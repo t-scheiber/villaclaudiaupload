@@ -1,15 +1,17 @@
 <?php
 /**
  * Villa Claudia Document Reminders Cron Script
- * 
+ *
  * This script calls the Next.js API endpoint to process document reminders.
  * Place this file in your Hostinger server and set up a cron job to run it daily.
  */
 
-// Setup logging
-$log_dir = __DIR__ . '/logs';
+if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }
+
+// Keep logs outside the public web root.
+$log_dir = dirname(__DIR__) . '/private-logs';
 if (!file_exists($log_dir)) {
-    mkdir($log_dir, 0755, true);
+    mkdir($log_dir, 0700, true);
 }
 $log_file = $log_dir . '/document-reminders.log';
 $timestamp = date('Y-m-d H:i:s');
@@ -50,6 +52,8 @@ $ch = curl_init($api_url);
 
 // Set cURL options
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 120);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Authorization: Bearer ' . $cron_secret,
     'Content-Type: application/json'
@@ -74,7 +78,7 @@ curl_close($ch);
 $result = json_decode($response, true);
 
 // Check HTTP status code
-if ($http_code != 200) {
+if ($http_code != 200 || !is_array($result) || ($result['success'] ?? false) !== true || ($result['failed'] ?? 0) > 0) {
     log_message("Error: Received HTTP code $http_code");
     log_message("Response: $response");
     exit(1);
@@ -87,4 +91,4 @@ log_message("Sent: " . $result['sent'] . " reminders");
 log_message("Failed: " . $result['failed'] . " reminders");
 log_message("====== Document Reminders Cron Completed ======");
 
-exit(0); 
+exit(0);
