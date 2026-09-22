@@ -1,141 +1,40 @@
-import { sendDocumentRequestEmail } from './email-config';
-
-interface Booking {
-  id: string;
-  bookingId: string;
-  guestEmail: string;
-  guestName: string;
-  checkInDate: string;
-  checkOutDate?: string;
-  hasUploadedDocuments: boolean;
-  status: string;
+import { sendDocumentRequestEmail, validateEmailConfiguration } from './email-config';
+import { Booking, wordpress } from './wordpress';
+const calendarDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zagreb', year: 'numeric', month: '2-digit', day: '2-digit' });
+export function reminderDue(checkIn: string, now = new Date()) {
+  const today = calendarDate.format(now);
+  const days = (Date.parse(`${checkIn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000;
+  // Catch up after an outage, without reminding after arrival.
+  return Number.isInteger(days) && days >= 0 && days <= 7;
 }
-
-/**
- * Checks for upcoming bookings that need document reminders
- * This would be called by a cron job daily
- */
-export async function processDocumentReminders() {
-  try {
-    // Get upcoming bookings from WordPress API
-    const upcomingBookings = await fetchUpcomingBookings();
-    
-    const now = new Date();
-    
-    // Find bookings that start approximately one week from now
-    const bookingsNeedingReminders = upcomingBookings.filter(booking => {
-      // Skip if documents already uploaded
-      if (booking.hasUploadedDocuments) {
-        return false;
-      }
-      
-      // Skip if booking status is not confirmed
-      if (booking.status !== 'confirmed') {
-        return false;
-      }
-      
-      const bookingStartDate = new Date(booking.checkInDate);
-      const daysDifference = Math.floor((bookingStartDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      
-      // Check if the booking starts between 6.5 and 7.5 days from now
-      // This ensures we only send one reminder per booking
-      return daysDifference >= 6.5 && daysDifference <= 7.5;
-    });
-    
-    console.log(`Found ${bookingsNeedingReminders.length} bookings needing document reminders`);
-    
-    // Send reminder emails
-    const emailResults = await Promise.all(
-      bookingsNeedingReminders.map(booking => 
-        sendDocumentRequestEmail(
-          booking.bookingId,
-          booking.guestEmail, 
-          booking.guestName,
-          new Date(booking.checkInDate),
-          booking.checkOutDate ? new Date(booking.checkOutDate) : undefined
-        )
-      )
-    );
-    
-    // Log results
-    const successCount = emailResults.filter(result => result.success).length;
-    console.log(`Successfully sent ${successCount} of ${emailResults.length} document reminders`);
-    
-    return {
-      processed: bookingsNeedingReminders.length,
-      sent: successCount,
-      failed: emailResults.length - successCount,
-    };
-  } catch (error) {
-    console.error('Error processing document reminders:', error);
-    throw error;
+export async function processDocumentReminders(now = new Date()) {
+  const bookings = await wordpress<Booking[]>('/bookings/upcoming');
+  if (!Array.isArray(bookings)) throw new Error('Invalid upcoming bookings response.');
+  const result = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  for (const booking of bookings) {
+    if (booking.status !== 'confirmed' || booking.hasUploadedDocuments || booking.reminderSent || !reminderDue(booking.checkInDate, now)) continue;
+    if (!booking.guestEmail) { result.skipped++; continue; }
+    result.processed++;
+    let delivered = false;
+    try {
+      validateEmailConfiguration();
+      const claim = await wordpress<{ claimed: boolean; pending?: boolean; claimId?: string; uploadToken?: string; booking?: Booking }>('/reminders/claim', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.bookingId }),
+      });
+      if (!claim.claimed) { if (claim.pending) result.failed++; else result.skipped++; continue; }
+      if (!claim.claimId || !claim.uploadToken || !claim.booking?.guestEmail || claim.booking.bookingId !== booking.bookingId) throw new Error('Invalid reminder claim.');
+      const email = await sendDocumentRequestEmail(claim.uploadToken, claim.booking.guestEmail, claim.booking.guestName, new Date(`${claim.booking.checkInDate}T12:00:00Z`));
+      delivered = email.success;
+      if (email.uncertain) throw new Error('Email delivery needs reconciliation.');
+      await wordpress('/reminders/complete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: booking.bookingId, claimId: claim.claimId, delivered }),
+      });
+      if (delivered) result.sent++; else result.failed++;
+    } catch {
+      // Keep an uncertain claim for manual reconciliation rather than duplicating mail.
+      console.error('Reminder could not be completed.', { bookingId: booking.bookingId, deliveryAccepted: delivered });
+      result.failed++;
+    }
   }
+  return result;
 }
-
-/**
- * Fetch upcoming bookings from WordPress API
- */
-async function fetchUpcomingBookings(): Promise<Booking[]> {
-  try {
-    const response = await fetch(`${process.env.WORDPRESS_API_URL}/bookings/upcoming`, {
-      headers: {
-        'x-api-key': process.env.WORDPRESS_API_KEY || ''
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch upcoming bookings: ${response.status}`);
-    }
-    
-    const bookings = await response.json();
-    
-    // Check uploads directory to see which bookings already have documents
-    const processedBookings = await Promise.all(
-      bookings.map(async (booking: Booking) => {
-        // Here we would check if documents exist for this booking
-        // For now, assume no documents have been uploaded
-        const hasUploadedDocuments = await checkForExistingDocuments(booking.bookingId);
-        
-        return {
-          ...booking,
-          hasUploadedDocuments
-        };
-      })
-    );
-    
-    return processedBookings;
-  } catch (error) {
-    console.error('Error fetching upcoming bookings:', error);
-    return [];
-  }
-}
-
-/**
- * Check if documents have been uploaded for a booking
- */
-async function checkForExistingDocuments(bookingId: string): Promise<boolean> {
-  try {
-    if (!process.env.WORDPRESS_API_URL || !process.env.WORDPRESS_API_KEY) {
-      console.warn('WordPress API configuration missing, defaulting to no documents');
-      return false;
-    }
-    
-    // Check WordPress API if documents exist for this booking
-    const response = await fetch(`${process.env.WORDPRESS_API_URL}/has-documents/${bookingId}`, {
-      headers: {
-        'x-api-key': process.env.WORDPRESS_API_KEY
-      }
-    });
-    
-    if (!response.ok) {
-      console.error(`Error checking documents: ${response.status}`);
-      return false;
-    }
-    
-    const data = await response.json();
-    return data.hasDocuments === true;
-  } catch (error) {
-    console.error(`Error checking documents for booking ${bookingId}:`, error);
-    return false;
-  }
-} 
