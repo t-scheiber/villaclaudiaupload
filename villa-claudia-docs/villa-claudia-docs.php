@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.7.1
+ * Version: 1.7.2
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -24,6 +24,7 @@ class Villa_Claudia_Docs {
         add_action('init', array($this, 'init'));
         add_filter('cron_schedules', array($this, 'calendar_schedules'));
         add_action('mphb_ical_auto_sync_parameters_fields', array($this, 'calendar_interval_field'));
+        add_action('plugins_loaded', array($this, 'ensure_calendar_schedule'));
         
         // Configure SMTP
         add_action('phpmailer_init', array($this, 'configure_smtp'));
@@ -61,6 +62,15 @@ class Villa_Claudia_Docs {
     public function calendar_schedules($schedules) {
         $schedules['vc_five_minutes'] = array('interval' => 300, 'display' => 'Every five minutes');
         return $schedules;
+    }
+
+    public function ensure_calendar_schedule() {
+        // MotoPress can initialize before this plugin registers its custom interval.
+        if (function_exists('MPHB') && get_option('mphb_ical_auto_sync_enable') &&
+            get_option('mphb_ical_auto_sync_interval') === 'vc_five_minutes' &&
+            !wp_next_scheduled('mphb_cron_ical_auto_synchronization')) {
+            MPHB()->cronManager()->rescheduleAutoSynchronizationCrons();
+        }
     }
 
     public function calendar_interval_field($group) {
