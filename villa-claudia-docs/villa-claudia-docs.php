@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.7.0
+ * Version: 1.7.1
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -22,6 +22,8 @@ class Villa_Claudia_Docs {
     public function __construct() {
         // Initialize the plugin
         add_action('init', array($this, 'init'));
+        add_filter('cron_schedules', array($this, 'calendar_schedules'));
+        add_action('mphb_ical_auto_sync_parameters_fields', array($this, 'calendar_interval_field'));
         
         // Configure SMTP
         add_action('phpmailer_init', array($this, 'configure_smtp'));
@@ -54,6 +56,25 @@ class Villa_Claudia_Docs {
         
         // Add new handler for retrieving booking dates
         add_action('wp_ajax_villa_claudia_get_booking_dates', array($this, 'ajax_get_booking_dates'));
+    }
+
+    public function calendar_schedules($schedules) {
+        $schedules['vc_five_minutes'] = array('interval' => 300, 'display' => 'Every five minutes');
+        return $schedules;
+    }
+
+    public function calendar_interval_field($group) {
+        $name = 'mphb_ical_auto_sync_interval';
+        $index = $group->getIndexByName($name);
+        if ($index < 0) { return; }
+        $field = $group->getFieldByName($name);
+        $replacement = \MPHB\Admin\Fields\FieldFactory::create($name, array(
+            'type' => 'select', 'default' => $field->getDefault(),
+            'label' => __('Interval', 'motopress-hotel-booking'),
+            'list' => array('vc_five_minutes' => __('Every five minutes', 'villa-claudia-docs')) + $field->getList(),
+        ));
+        $replacement->setValue($field->getValue());
+        $group->insertField($replacement, $index);
     }
 
     private function get_config_value($option_name, $env_keys = array(), $default = '') {
@@ -792,46 +813,11 @@ class Villa_Claudia_Docs {
             wp_die('You do not have permission to delete documents');
         }
         
-        $documents = get_post_meta($booking_id, 'villa_claudia_document');
-        $updated_documents = [];
-        $document_found = false;
-        
-        // Remove the document from metadata
-        foreach ($documents as $document) {
-            if ($document['filename'] !== $document_id) {
-                $updated_documents[] = $document;
-            } else {
-                $document_found = true;
-            }
+        $result = $this->remove_stored_document($booking_id, $document_id);
+        if (is_wp_error($result)) {
+            wp_die(esc_html($result->get_error_message()), '', array('response' => $result->get_error_data()['status']));
         }
-        
-        if ($document_found) {
-            // Delete the physical file
-            $upload_dir = wp_upload_dir();
-            $document_path = $this->document_path($booking_id, $document_id);
-            
-            if ($document_path && file_exists($document_path)) {
-                unlink($document_path);
-            }
-            
-            // Update the metadata
-            delete_post_meta($booking_id, 'villa_claudia_document');
-            
-            foreach ($updated_documents as $doc) {
-                add_post_meta($booking_id, 'villa_claudia_document', $doc);
-            }
-            
-            // If no documents left, update the has_documents flag
-            if (empty($updated_documents)) {
-                update_post_meta($booking_id, 'villa_claudia_has_documents', false);
-            }
-            
-            // Add admin notice
-            add_action('admin_notices', function() {
-                echo '<div class="notice notice-success is-dismissible"><p>Document deleted successfully.</p></div>';
-            });
-        }
-        
+
         // Redirect back to the document list
         wp_redirect(admin_url('admin.php?page=document-uploads'));
         exit;
@@ -871,7 +857,9 @@ class Villa_Claudia_Docs {
                     // Update the status
                     $document['status'] = $new_status;
                     // Update in database
-                    update_post_meta($booking_id, 'villa_claudia_document', $document, $documents[$index]);
+                    if ($document !== $documents[$index] && !update_post_meta($booking_id, 'villa_claudia_document', $document, $documents[$index])) {
+                        wp_die('The document changed or its status could not be saved. Refresh and retry.', '', array('response' => 409));
+                    }
                     $updated = true;
                     break;
                 }

@@ -42,7 +42,8 @@ if (!$cron_secret) {
     }
 }
 if (!$cron_secret) {
-    die("Error: CRON_SECRET not found in env or .env.cron file\n");
+    log_message('Error: CRON_SECRET not found in env or .env.cron file');
+    exit(1);
 }
 
 log_message("Calling API: $api_url");

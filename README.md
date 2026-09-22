@@ -10,7 +10,7 @@ Set these server variables in Hostinger. Never commit values or include them in 
 - `WORDPRESS_API_URL=https://villa-claudia.eu/wp-json/villa-claudia/v1`
 - `WORDPRESS_API_KEY`: match the WordPress plugin setting.
 - `CRON_SECRET`: match the private cron environment file.
-- `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_FROM`, `EMAIL_TO`.
+- `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_FROM`, `ADMIN_EMAIL`.
 - `EMAIL_PORT`: 465 for implicit TLS or 587 for STARTTLS. Certificate validation is required.
 
 Install with `npm ci`; run `npm test`, `npm run lint`, and `npm run build`. Run PHP checks with `php tests/wordpress-workflow.php villa-claudia-docs/workflow.php`. The PHP test does not load a production database.
@@ -38,5 +38,7 @@ Definitive SMTP failures release the claim for retry. Ambiguous disconnects or f
 ## Production operations
 
 Disable LiteSpeed REST caching and purge cached private responses. Private API routes also emit no-store headers. Keep backup PHP files, environment files, logs, and document files inaccessible through HTTP. Preserve the configured document-forwarding recipient; sending from the admin UI is an explicit operator action and does not establish authority registration.
+
+The plugin registers `vc_five_minutes` and adds it to MotoPress's calendar interval selector. Production uses this interval to preserve its existing five-minute synchronization cadence while keeping the saved setting and scheduled event consistent. Select another supported interval in MotoPress if changing the cadence. Admin document deletion removes only the selected metadata record, preserving concurrent uploads; storage failures are reported.
 
 Booking/payment settings are in WordPress, not this Next.js app. Check-in is 15:00, timezone Europe/Zagreb, and WooCommerce uses the published basket page. Stripe production mode remains enabled. A healthy webhook and account configuration do not prove a completed card payment, 3-D Secure challenge, refund, or guest inbox delivery. Verify those separately in an isolated test environment before claiming complete payment end-to-end coverage.
