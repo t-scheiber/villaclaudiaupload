@@ -24,3 +24,4 @@ jobs:
           php -l villa-claudia-docs/workflow.php
           php -l cron-document-reminders.php
           php tests/wordpress-workflow.php villa-claudia-docs/workflow.php
+          php tests/wordpress-calendar.php villa-claudia-docs/villa-claudia-docs.php
