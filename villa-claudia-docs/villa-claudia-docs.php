@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.6.2
+ * Version: 1.7.0
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -12,7 +12,10 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once __DIR__ . '/workflow.php';
+
 class Villa_Claudia_Docs {
+    use Villa_Claudia_Workflow;
     private $api_key;
     private $env_config = null;
     
@@ -25,6 +28,7 @@ class Villa_Claudia_Docs {
         
         // Register REST API endpoints
         add_action('rest_api_init', array($this, 'register_api_endpoints'));
+        add_filter('rest_post_dispatch', array($this, 'private_rest_response'), 10, 3);
         
         // Add settings page
         add_action('admin_menu', array($this, 'add_admin_menu'));
@@ -146,29 +150,14 @@ class Villa_Claudia_Docs {
     /**
      * Get or generate a secure booking ID for a booking
      */
-    private function get_secure_booking_id($booking_id) {
-        $secure_id = get_post_meta($booking_id, 'villa_claudia_secure_id', true);
-        
-        if (empty($secure_id)) {
-            // Get booking details
-            $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
-            $check_out_date = get_post_meta($booking_id, 'mphb_check_out_date', true);
-            
-            // Format dates (remove hyphens)
-            $check_in_formatted = str_replace('-', '', $check_in_date);
-            $check_out_formatted = str_replace('-', '', $check_out_date);
-            
-            // Concatenate booking ID, check-in date, and check-out date
-            $secure_id = $booking_id . $check_in_formatted . $check_out_formatted;
-            
-            // Store the secure ID
-            update_post_meta($booking_id, 'villa_claudia_secure_id', $secure_id);
+    public function register_api_endpoints() {
+        foreach (array('claim' => 'claim_reminder', 'complete' => 'complete_reminder') as $path => $callback) {
+            register_rest_route('villa-claudia/v1', '/reminders/' . $path, array(
+                'methods' => 'POST', 'callback' => array($this, $callback),
+                'permission_callback' => array($this, 'validate_api_key')
+            ));
         }
         
-        return $secure_id;
-    }
-    
-    public function register_api_endpoints() {
         register_rest_route('villa-claudia/v1', '/booking/(?P<id>\w+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_booking_data'),
@@ -210,18 +199,18 @@ class Villa_Claudia_Docs {
     
     public function validate_api_key($request) {
         $api_key = $request->get_header('x-api-key');
-        return $api_key === $this->api_key;
+        return is_string($api_key) && is_string($this->api_key) && $this->api_key !== '' && hash_equals($this->api_key, $api_key);
     }
     
     public function get_booking_data($request) {
         $booking_id = $request->get_param('id');
         
-        error_log('API Request for booking ID: ' . $booking_id);
+
         
         // First try to get the booking as a post
         $booking_post = get_post($booking_id);
         
-        error_log('Direct post lookup: ' . ($booking_post ? 'Found' : 'Not found'));
+
         
         if (!$booking_post || $booking_post->post_type !== 'mphb_booking') {
             // If not found directly, try to find it in MotoPress tables
@@ -239,7 +228,7 @@ class Villa_Claudia_Docs {
                 $booking_post = get_post($mphb_booking_id);
             }
             
-            if (!$booking_post) {
+            if (!$booking_post || $booking_post->post_type !== 'mphb_booking') {
                 return new WP_Error('no_booking', 'Booking not found', array('status' => 404));
             }
         }
@@ -286,8 +275,8 @@ class Villa_Claudia_Docs {
     public function get_upcoming_bookings() {
         global $wpdb;
         
-        $today = date('Y-m-d');
-        $two_weeks_later = date('Y-m-d', strtotime('+14 days'));
+        $today = current_time('Y-m-d');
+        $two_weeks_later = (new DateTimeImmutable('today', wp_timezone()))->modify('+14 days')->format('Y-m-d');
         
         // Query upcoming bookings in the next 14 days
         $query = $wpdb->prepare(
@@ -321,6 +310,8 @@ class Villa_Claudia_Docs {
                 continue;
             }
             
+            $booking_data['hasUploadedDocuments'] = $this->has_stored_documents($booking_id);
+            $booking_data['reminderSent'] = get_post_meta($booking_id, 'villa_claudia_reminder_sent_for', true) === $this->booking_fingerprint($booking_id);
             $bookings[] = $booking_data;
         }
         
@@ -386,7 +377,7 @@ class Villa_Claudia_Docs {
                         <td>
                             <input type="email" style="width: 320px;" 
                                    name="villa_claudia_city_email" 
-                                   value="<?php echo esc_attr(get_option('villa_claudia_city_email', 'grad@makarska.hr')); ?>" />
+                                   value="<?php echo esc_attr(get_option('villa_claudia_city_email', '')); ?>" />
                             <p class="description">Email address where guest documents will be sent for city registration.</p>
                         </td>
                     </tr>
@@ -396,7 +387,7 @@ class Villa_Claudia_Docs {
                             <input type="password" style="width: 320px;" 
                                    name="villa_claudia_smtp_password" 
                                    value="<?php echo esc_attr(get_option('villa_claudia_smtp_password')); ?>" />
-                            <p class="description">Password for the no-reply@villa-claudia.eu email account (used for SMTP authentication).</p>
+                            <p class="description">Password for the administration@villa-claudia.eu email account (used for SMTP authentication).</p>
                             <p class="description">If present, values from the server env file override the stored WordPress settings.</p>
                         </td>
                     </tr>
@@ -473,6 +464,10 @@ class Villa_Claudia_Docs {
     }
     
     public function display_documents_meta_box($post) {
+        if ($this->active_booking($post->ID)) {
+            $url = 'https://documents.villa-claudia.eu/uploads/' . $this->get_secure_booking_id($post->ID);
+            echo '<p><a target="_blank" rel="noreferrer" href="' . esc_url($url) . '">Open guest upload link</a></p>';
+        }
         $documents = get_post_meta($post->ID, 'villa_claudia_document');
         
         if (empty($documents)) {
@@ -505,7 +500,7 @@ class Villa_Claudia_Docs {
         // Add Send to City button if documents are verified
         $all_verified = true;
         foreach ($documents as $document) {
-            if ($document['status'] !== 'verified') {
+            if (($document['status'] ?? 'pending') !== 'verified') {
                 $all_verified = false;
                 break;
             }
@@ -550,84 +545,11 @@ class Villa_Claudia_Docs {
             return new WP_Error('missing_id', 'Booking ID is required', array('status' => 400));
         }
         
-        $has_documents = (bool) get_post_meta($booking_id, 'villa_claudia_has_documents', true);
+        $has_documents = $this->has_stored_documents($booking_id);
         
         return array(
             'bookingId' => $booking_id,
             'hasDocuments' => $has_documents
-        );
-    }
-    
-    public function handle_document_upload($request) {
-        $booking_id = $request->get_param('bookingId');
-        $files = $request->get_file_params();
-        
-        if (empty($booking_id)) {
-            return new WP_Error('missing_id', 'Booking ID is required', array('status' => 400));
-        }
-        
-        if (empty($files)) {
-            return new WP_Error('no_files', 'No files were uploaded', array('status' => 400));
-        }
-        
-        // Create upload directory
-        $upload_dir = wp_upload_dir();
-        $booking_dir = $upload_dir['basedir'] . '/booking-documents/' . $booking_id;
-        
-        if (!file_exists($booking_dir)) {
-            wp_mkdir_p($booking_dir);
-            
-            // Create .htaccess file to protect directory
-            $htaccess = "Order deny,allow\nDeny from all";
-            file_put_contents($booking_dir . '/.htaccess', $htaccess);
-        }
-        
-        $uploaded_files = array();
-        
-        // Process each file
-        foreach ($files as $file_key => $file) {
-            $file_info = $request->get_param('file_info_' . $file_key);
-            $decoded_info = json_decode($file_info, true);
-            
-            // Generate secure filename
-            $filename = sanitize_file_name(
-                ($decoded_info['travelerName'] ?? 'guest') . '-' . 
-                ($decoded_info['documentType'] ?? 'document') . '-' . 
-                time() . '.' . 
-                pathinfo($file['name'], PATHINFO_EXTENSION)
-            );
-            
-            // Save file
-            if (move_uploaded_file($file['tmp_name'], $booking_dir . '/' . $filename)) {
-                $uploaded_files[] = array(
-                    'name' => $filename,
-                    'original_name' => $file['name'],
-                    'type' => $file['type'],
-                    'size' => $file['size'],
-                    'traveler_name' => $decoded_info['travelerName'] ?? '',
-                    'document_type' => $decoded_info['documentType'] ?? '',
-                    'document_number' => $decoded_info['documentNumber'] ?? ''
-                );
-                
-                // Save file metadata to post meta
-                add_post_meta($booking_id, 'villa_claudia_document', array(
-                    'filename' => $filename,
-                    'original_name' => $file['name'],
-                    'uploaded_at' => current_time('mysql'),
-                    'traveler_name' => $decoded_info['travelerName'] ?? '',
-                    'document_type' => $decoded_info['documentType'] ?? '',
-                    'document_number' => $decoded_info['documentNumber'] ?? ''
-                ));
-            }
-        }
-        
-        // Update flag to indicate documents have been uploaded
-        update_post_meta($booking_id, 'villa_claudia_has_documents', true);
-        
-        return array(
-            'success' => true,
-            'message' => 'Files uploaded successfully',
-            'files' => $uploaded_files
         );
     }
     
@@ -654,9 +576,9 @@ class Villa_Claudia_Docs {
         
         // Get the document path
         $upload_dir = wp_upload_dir();
-        $document_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document_id;
+        $document_path = $this->document_path($booking_id, $document_id);
         
-        if (!file_exists($document_path)) {
+        if (!$document_path || !file_exists($document_path)) {
             wp_die('Document not found');
         }
         
@@ -675,6 +597,8 @@ class Villa_Claudia_Docs {
         $content_type = isset($content_types[$file_extension]) ? $content_types[$file_extension] : 'application/octet-stream';
         
         // Output appropriate headers
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
         header('Content-Type: ' . $content_type);
         header('Content-Disposition: inline; filename="' . basename($document_path) . '"');
         header('Content-Length: ' . filesize($document_path));
@@ -884,9 +808,9 @@ class Villa_Claudia_Docs {
         if ($document_found) {
             // Delete the physical file
             $upload_dir = wp_upload_dir();
-            $document_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document_id;
+            $document_path = $this->document_path($booking_id, $document_id);
             
-            if (file_exists($document_path)) {
+            if ($document_path && file_exists($document_path)) {
                 unlink($document_path);
             }
             
@@ -969,33 +893,6 @@ class Villa_Claudia_Docs {
     /**
      * Get booking data by secure ID
      */
-    public function get_booking_by_secure_id($request) {
-        $secure_id = $request->get_param('secure_id');
-        
-        if (empty($secure_id)) {
-            return new WP_Error('no_id', 'Secure ID is required', array('status' => 400));
-        }
-        
-        // Find booking with this secure ID
-        global $wpdb;
-        $booking_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT post_id FROM {$wpdb->postmeta} 
-             WHERE meta_key = 'villa_claudia_secure_id' 
-             AND meta_value = %s",
-            $secure_id
-        ));
-        
-        if (!$booking_id) {
-            return new WP_Error('not_found', 'Booking not found', array('status' => 404));
-        }
-        
-        // Create a fake request object to reuse the get_booking_data method
-        $request = new WP_REST_Request('GET', '/villa-claudia/v1/booking/' . $booking_id);
-        $request->set_param('id', $booking_id);
-        
-        return $this->get_booking_data($request);
-    }
-    
     /**
      * Handle sending test email with document upload link
      */
@@ -1215,20 +1112,16 @@ class Villa_Claudia_Docs {
         // Send email
         $headers = array(
             'Content-Type: text/plain; charset=UTF-8',
-            'From: Villa Claudia <no-reply@villa-claudia.eu>'
+            'From: Villa Claudia <administration@villa-claudia.eu>'
         );
         
         $city_email = $this->get_config_value(
             'villa_claudia_city_email',
             array('VILLA_CLAUDIA_CITY_EMAIL'),
-            'grad@makarska.hr'
+            ''
         );
         
-        // Check if the property is in Valentici
-        $property_address = get_post_meta($booking_id, 'mphb_property_address', true);
-        if (stripos($property_address, 'Valentici') !== false) {
-            $city_email = 'grad@makarska.hr'; // Use Makarska for Valentici
-        }
+        if (!is_email($city_email)) { wp_send_json_error('Configure an approved recipient before sending documents.'); }
         
         $sent = wp_mail($city_email, $subject, $message, $headers, $attachments);
         
@@ -1316,7 +1209,7 @@ class Villa_Claudia_Docs {
                     // Send email
                     $headers = array(
                         'Content-Type: text/plain; charset=UTF-8',
-                        'From: Villa Claudia <no-reply@villa-claudia.eu>'
+                        'From: Villa Claudia <administration@villa-claudia.eu>'
                     );
                     $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
                     
@@ -1388,7 +1281,7 @@ class Villa_Claudia_Docs {
                         <th scope="row"><label for="recipient_email">Recipient Email</label></th>
                         <td>
                             <input type="email" name="recipient_email" id="recipient_email" class="regular-text" 
-                                   value="<?php echo esc_attr($this->get_config_value('villa_claudia_city_email', array('VILLA_CLAUDIA_CITY_EMAIL'), 'grad@makarska.hr')); ?>" required>
+                                   value="<?php echo esc_attr($this->get_config_value('villa_claudia_city_email', array('VILLA_CLAUDIA_CITY_EMAIL'), '')); ?>" required>
                             <p class="description">Enter the email address where the documents should be sent.</p>
                         </td>
                     </tr>
@@ -1522,13 +1415,13 @@ Villa Claudia`;
         $phpmailer->SMTPAuth = true;
         $phpmailer->Port = 465;
         $phpmailer->SMTPSecure = 'ssl';
-        $phpmailer->Username = 'no-reply@villa-claudia.eu';
+        $phpmailer->Username = 'administration@villa-claudia.eu';
         $phpmailer->Password = $this->get_config_value(
             'villa_claudia_smtp_password',
             array('VILLA_CLAUDIA_SMTP_PASSWORD', 'SMTP_PASSWORD', 'EMAIL_PASS'),
             ''
         );
-        $phpmailer->From = 'no-reply@villa-claudia.eu';
+        $phpmailer->From = 'administration@villa-claudia.eu';
         $phpmailer->FromName = 'Villa Claudia';
     }
 
