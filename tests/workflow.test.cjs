@@ -34,12 +34,12 @@ function loader({ fetch, mail = async () => ({ accepted: ['admin@example.invalid
   return load;
 }
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
-function uploadRequest(id = token, count = 1) {
+function uploadRequest(id = token, count = 1, documentNumber = 'NOT-AN-ID') {
   const form = new FormData(); form.set('bookingId', id);
   form.set('guestName', 'Attacker-chosen name'); form.set('email', 'different@example.invalid');
   for (let i = 0; i < count; i++) {
     form.append('files', new File(['%PDF-1.4\nsynthetic fixture'], 'same-name.pdf', { type: 'application/pdf' }));
-    form.set(`fileMetadata[${i}]`, JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'passport', documentNumber: 'NOT-AN-ID' }));
+    form.set(`fileMetadata[${i}]`, JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'passport', documentNumber }));
   }
   return new Request('https://local.invalid/api/upload', { method: 'POST', body: form });
 }
@@ -156,6 +156,17 @@ test('oversized request and excessive file count are rejected', async () => {
   const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: 'small', headers: { 'Content-Length': String(28 * 1024 * 1024) } });
   assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 413);
   assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 9))).status, 400);
+});
+test('empty and whitespace-only document numbers fail before storage or notification', async () => {
+  let uploads = 0, mails = 0;
+  const load = loader({ fetch: async url => {
+    if (url.includes('secure-booking')) return json(booking);
+    uploads++; return json({ success: true, storedCount: 1, bookingId: 42 });
+  }, mail: async () => { mails++; return { accepted: ['admin@example.invalid'] }; } });
+  for (const number of ['', '   ', '\t\n']) {
+    assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 1, number))).status, 400);
+  }
+  assert.equal(uploads, 0); assert.equal(mails, 0);
 });
 test('cron fails closed when unconfigured, denies wrong secrets and surfaces backend errors', async () => {
   const request = new Request('https://local.invalid/api/cron/document-reminders');
