@@ -97,6 +97,14 @@ test('upstream upload gateway errors and unreadable acknowledgements require rec
     assert.match((await response.json()).error, /contact Villa Claudia before uploading again/);
   }
 });
+test('WordPress file validation errors do not tell guests their valid link has expired', async () => {
+  const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json({ code: 'invalid_file' }, 400) });
+  const response = await load('app/api/upload/route.ts').POST(uploadRequest());
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.match(body.error, /document could not be validated/);
+  assert.doesNotMatch(body.error, /link.*expired/);
+});
 test('stored upload survives notification failure and forwards token, not caller booking ID', async () => {
   let upstream;
   const load = loader({ fetch: async (url, init) => {
