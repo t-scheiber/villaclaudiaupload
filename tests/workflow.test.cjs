@@ -20,7 +20,10 @@ function loader({ fetch, mail = async () => ({ accepted: ['admin@example.invalid
       if (name === 'next/server') return { NextResponse: { json: (body, init = {}) => new Response(JSON.stringify(body), { ...init, headers: { 'Content-Type': 'application/json', ...init.headers } }) } };
       if (name === 'nodemailer') return { createTransport: config => ({ sendMail: data => mail(data, config) }) };
       if (name === '@/components/document-upload-form') return { __esModule: true, default: 'DocumentUploadForm' };
-      if (name.startsWith('@/')) return load(name.slice(2) + '.ts');
+      if (name.startsWith('@/')) {
+        const sourcePath = name.slice(2);
+        return load(sourcePath + (fs.existsSync(path.resolve(root, sourcePath + '.ts')) ? '.ts' : '.tsx'));
+      }
       if (name.startsWith('.')) return load(path.resolve(path.dirname(file), name + '.ts'));
       return require(name);
     };
@@ -40,6 +43,11 @@ function uploadRequest(id = token, count = 1) {
   }
   return new Request('https://local.invalid/api/upload', { method: 'POST', body: form });
 }
+test('national ID selection includes EU, EEA and Swiss guests without allowing unrelated citizenships', () => {
+  const { acceptsNationalId } = loader()('components/document-upload-form.tsx');
+  for (const country of ['at', 'de', 'hr', 'no', 'is', 'li', 'ch']) assert.equal(acceptsNationalId(country), true);
+  for (const country of ['gb', 'us', 'other', '']) assert.equal(acceptsNationalId(country), false);
+});
 test('numeric, malformed, uppercase and encoded tokens are rejected before backend access', async () => {
   let calls = 0;
   const load = loader({ fetch: async () => { calls++; return json(booking); } });
