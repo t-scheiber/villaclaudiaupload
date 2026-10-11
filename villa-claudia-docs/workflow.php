@@ -12,7 +12,8 @@ trait Villa_Claudia_Workflow {
 
     private function get_secure_booking_id($id) {
         global $wpdb;
-        $lock = 'vc-token-' . absint($id);
+        $site = (defined('DB_NAME') ? DB_NAME : '') . '|' . ($wpdb->prefix ?? '');
+        $lock = 'vc-token-' . substr(hash('sha256', $site . '|' . absint($id)), 0, 48);
         if ((int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 5)', $lock)) !== 1) {
             return new WP_Error('token_busy', 'The upload link is being updated. Refresh and try again.', array('status' => 503));
         }
