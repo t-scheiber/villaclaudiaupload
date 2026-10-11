@@ -41,6 +41,8 @@ const otherCountries = [
   { code: 'gb', name: 'United Kingdom' },
   { code: 'ch', name: 'Switzerland' },
   { code: 'no', name: 'Norway' },
+  { code: 'is', name: 'Iceland' },
+  { code: 'li', name: 'Liechtenstein' },
   { code: 'au', name: 'Australia' },
   { code: 'nz', name: 'New Zealand' },
   { code: 'jp', name: 'Japan' },
@@ -51,8 +53,8 @@ const otherCountries = [
   { code: 'other', name: 'Other' }
 ];
 
-function isEuCitizen(citizenship: string): boolean {
-  return euCountries.some(country => country.code === citizenship);
+export function acceptsNationalId(citizenship: string): boolean {
+  return euCountries.some(country => country.code === citizenship) || ['no', 'is', 'li', 'ch'].includes(citizenship);
 }
 
 type Traveler = {
@@ -88,7 +90,7 @@ function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSe
           <button
             type="button"
             onClick={onRemove}
-            className="text-red-500 hover:text-red-700"
+            className="text-red-700 hover:text-red-800"
           >
             Remove
           </button>
@@ -147,13 +149,13 @@ function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSe
           required
         >
           <option value="passport">Passport</option>
-          {isEuCitizen(traveler.citizenship) && (
-            <option value="id_card">National ID Card (EU citizens only)</option>
+          {acceptsNationalId(traveler.citizenship) && (
+            <option value="id_card">National ID Card</option>
           )}
         </select>
-        {!isEuCitizen(traveler.citizenship) && (
-          <p className="mt-1 text-xs text-amber-600">
-            Non-EU citizens must use a passport.
+        {!acceptsNationalId(traveler.citizenship) && (
+          <p className="mt-1 text-xs text-amber-800">
+            Choose a passport. Contact Villa Claudia if you need to use another document.
           </p>
         )}
       </div>
@@ -243,7 +245,7 @@ export default function DocumentUploadForm({
 
   useEffect(() => {
     if (submitState.error || submitState.success) feedbackRef.current?.focus();
-  }, [submitState.error, submitState.success]);
+  }, [submitState]);
 
   const handleFilesSelected = (files: File[], travelerIndex: number) => {
     setTravelers(prev => prev.map((t, i) => i === travelerIndex ? { ...t, file: files[0] } : t));
@@ -265,7 +267,7 @@ export default function DocumentUploadForm({
     setTravelers(prev => prev.map((t, i) => {
       if (i !== index) return t;
       const updated = { ...t, [field]: value };
-      if (field === 'citizenship' && updated.documentType === 'id_card' && !isEuCitizen(value)) {
+      if (field === 'citizenship' && updated.documentType === 'id_card' && !acceptsNationalId(value)) {
         updated.documentType = 'passport';
       }
       return updated;

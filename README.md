@@ -38,6 +38,8 @@ The application reports success only after WordPress confirms every file was sav
 
 Removing a selected file clears it from the submitted guest data. Guests can replace a file without removing it first, and the form checks the combined 25 MiB limit before sending. Controls and drop handlers stay locked during submission. A lost response or upstream upload gateway error requires reconciliation with Villa Claudia before uploading again.
 
+The guest form offers national ID cards for EU, EEA and Swiss citizenships. This follows Croatia's [travel information](https://mvep.gov.hr/services-for-citizens/consular-information-22802/visas/22806) and [Swiss visitor guidance](https://mvep.gov.hr/services-for-citizens/consular-informations/visas-22807/visa-requirements-overview-22879/22879?country=132). Document review remains an operator action.
+
 ## Reminders
 
 The existing daily Hostinger job runs `cron-document-reminders.php` through PHP CLI. It calls `GET /api/cron/document-reminders` with a Bearer secret. POST is also supported. Missing configuration fails closed; backend and mail errors produce a failing cron result. The script reads `CRON_SECRET` from its environment or the protected `.env.cron` beside it. Logs go to `../private-logs/`, outside public_html. HTTP access to the script is denied.

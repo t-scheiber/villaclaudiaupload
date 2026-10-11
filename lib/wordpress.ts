@@ -26,6 +26,8 @@ export async function wordpress<T>(path: string, init: RequestInit = {}): Promis
   }
   if (!response.ok) {
     if (uncertainUpload && response.status >= 500) throw new WorkflowError(502, uncertainMessage);
+    if (uncertainUpload && response.status === 400) throw new WorkflowError(400,
+      'A document could not be validated. Please choose readable JPEG, PNG or PDF files within the size limits and check each guest\'s details.');
     if ([400, 403, 404, 410].includes(response.status)) throw new WorkflowError(response.status, 'This upload link is invalid or has expired. Please request a new link.');
     throw new WorkflowError(502, 'Document service could not complete the request. Please try again.');
   }

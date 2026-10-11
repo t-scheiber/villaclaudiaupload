@@ -159,7 +159,7 @@ export function FileUpload({
             <label htmlFor={id} className="cursor-pointer text-amber-700 hover:text-amber-800 font-medium">
               Choose document
             </label>{" "}
-            <span className="text-amber-600">or drag and drop</span>
+            <span className="text-amber-800">or drag and drop</span>
             <p id={`${id}-help`} className="text-xs text-amber-800 mt-1">
               JPEG, PNG or PDF, up to {maxSizeInMB} MiB per file
             </p>
