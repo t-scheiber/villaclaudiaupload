@@ -13,7 +13,7 @@ export default function DocumentsLayout({
 }>) {
   return (
     <div className="min-h-screen bg-[#fff4d8]">
-      <main>{children}</main>
+      {children}
     </div>
   );
 }

@@ -14,16 +14,23 @@ export async function wordpress<T>(path: string, init: RequestInit = {}): Promis
   const key = process.env.WORDPRESS_API_KEY;
   if (!base || !key) throw new WorkflowError(503, 'Document service is temporarily unavailable.');
   const headers = new Headers(init.headers); headers.set('x-api-key', key);
+  const uncertainUpload = init.method === 'POST' && path === '/upload-documents';
+  const uncertainMessage = 'We could not confirm whether your documents were saved. Please contact Villa Claudia before uploading again.';
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, { ...init, headers, cache: 'no-store', signal: AbortSignal.timeout(30000) });
-  } catch { throw new WorkflowError(503, 'Document service is temporarily unavailable. Please try again.'); }
+  } catch {
+    throw new WorkflowError(503, uncertainUpload
+      ? uncertainMessage
+      : 'Document service is temporarily unavailable. Please try again.');
+  }
   if (!response.ok) {
+    if (uncertainUpload && response.status >= 500) throw new WorkflowError(502, uncertainMessage);
     if ([400, 403, 404, 410].includes(response.status)) throw new WorkflowError(response.status, 'This upload link is invalid or has expired. Please request a new link.');
     throw new WorkflowError(502, 'Document service could not complete the request. Please try again.');
   }
   try { return await response.json() as T; }
-  catch { throw new WorkflowError(502, 'Invalid response from the document service.'); }
+  catch { throw new WorkflowError(502, uncertainUpload ? uncertainMessage : 'Invalid response from the document service.'); }
 }
 export async function resolveBooking(token: unknown): Promise<Booking> {
   if (!validToken(token)) throw new WorkflowError(404, 'This upload link is invalid or has expired. Please request a new link.');

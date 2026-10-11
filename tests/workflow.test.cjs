@@ -80,6 +80,23 @@ test('storage failure, false success and partial counts never send mail or repor
     assert.equal(response.status, 502); assert.equal((await response.json()).success, false); assert.equal(mails, 0);
   }
 });
+test('lost upload response reports uncertain storage without encouraging a blind retry', async () => {
+  const load = loader({ fetch: async url => {
+    if (url.includes('secure-booking')) return json(booking);
+    throw new Error('Synthetic connection lost after storage');
+  } });
+  const response = await load('app/api/upload/route.ts').POST(uploadRequest());
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /contact Villa Claudia before uploading again/);
+});
+test('upstream upload gateway errors and unreadable acknowledgements require reconciliation', async () => {
+  for (const outcome of [() => json({}, 504), () => new Response('interrupted JSON')]) {
+    const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : outcome() });
+    const response = await load('app/api/upload/route.ts').POST(uploadRequest());
+    assert.equal(response.status, 502);
+    assert.match((await response.json()).error, /contact Villa Claudia before uploading again/);
+  }
+});
 test('stored upload survives notification failure and forwards token, not caller booking ID', async () => {
   let upstream;
   const load = loader({ fetch: async (url, init) => {
