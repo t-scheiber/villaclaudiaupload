@@ -48,6 +48,8 @@ Confirmed bookings with an email address and no stored documents are eligible fr
 
 Definitive SMTP failures release the claim for retry. Ambiguous disconnects or failure to record SMTP acceptance preserve the claim and cause a visible failed result. Reconcile these against SMTP logs before resending. Claims are private WordPress options named `vc_reminder_<booking ID>_<first 32 characters of booking fingerprint>`. After confirming no delivery, delete only that exact claim option to permit retry. If delivery was accepted, use the authenticated reminder completion endpoint with the original claim ID and `delivered: true`. Never clear all claims automatically.
 
+Generic Nodemailer connection errors do not prove that a message was unsent. A server can receive DATA and disconnect before acknowledging it, producing `ECONNECTION` with command `CONN`. These failures retain the reminder claim for reconciliation.
+
 ## Production operations
 
 Disable LiteSpeed REST caching and purge cached private responses. Private API routes also emit no-store headers. Keep backup PHP files, environment files, logs, and document files inaccessible through HTTP. Preserve the configured document-forwarding recipient; sending from the admin UI is an explicit operator action and does not establish authority registration.

@@ -203,6 +203,21 @@ test('reminder uses the claim recipient and retries definitive SMTP rejection', 
   const result = await load('lib/document-scheduler.ts').processDocumentReminders(new Date('2026-09-22T12:00Z'));
   assert.equal(recipient, 'corrected@example.invalid'); assert.equal(completed.delivered, false); assert.equal(result.failed, 1);
 });
+test('generic SMTP connection errors after DATA keep the reminder claim for reconciliation', async () => {
+  for (const code of ['ECONNECTION', 'ETIMEDOUT', 'ESOCKET']) {
+    let completions = 0;
+    const load = loader({ fetch: async url => {
+      if (url.endsWith('/bookings/upcoming')) return json([booking]);
+      if (url.endsWith('/reminders/claim')) return json({ claimed: true, claimId: 'claim', uploadToken: token, booking });
+      completions++; return json({ success: true });
+    }, mail: async () => {
+      throw Object.assign(new Error('Connection closed unexpectedly'), { code, command: 'CONN' });
+    } });
+    const result = await load('lib/document-scheduler.ts').processDocumentReminders(new Date('2026-09-22T12:00Z'));
+    assert.equal(result.failed, 1);
+    assert.equal(completions, 0);
+  }
+});
 test('missing SMTP configuration fails before consuming any reminder claim', async () => {
   let claims = 0;
   const load = loader({ env: { EMAIL_PASSWORD: '' }, fetch: async url => { if (!url.endsWith('/bookings/upcoming')) claims++; return json([booking]); } });
