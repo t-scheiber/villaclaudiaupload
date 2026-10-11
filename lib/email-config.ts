@@ -41,8 +41,10 @@ export async function sendDocumentRequestEmail(uploadToken: string, guestEmail: 
     console.error('Document reminder email was not accepted.');
     const failure = error as { code?: string; command?: string; responseCode?: number };
     const rejected = typeof failure.responseCode === 'number' && failure.responseCode >= 400;
-    const beforeDelivery = ['EAUTH', 'EDNS', 'ECONNECTION'].includes(failure.code || '') ||
-      ['CONN', 'EHLO', 'HELO', 'STARTTLS', 'AUTH', 'MAIL FROM', 'RCPT TO'].includes(failure.command || '');
+    // Nodemailer also reports ECONNECTION/CONN when DATA was transmitted but
+    // the server disconnected before its acknowledgement. That is uncertain.
+    const beforeDelivery = ['EAUTH', 'EDNS'].includes(failure.code || '') ||
+      ['EHLO', 'HELO', 'STARTTLS', 'AUTH', 'MAIL FROM', 'RCPT TO'].includes(failure.command || '');
     return { success: false, uncertain: !(rejected || beforeDelivery) };
   }
 }
