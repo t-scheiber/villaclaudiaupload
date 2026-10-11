@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
         to: process.env.ADMIN_EMAIL || 'administration@villa-claudia.eu',
         subject: `[Villa Claudia] Travel Documents Uploaded - Booking ${booking.bookingId}`,
         text: `Documents are saved in WordPress for booking ${booking.bookingId}.\nGuest: ${booking.guestName}\nEmail: ${booking.guestEmail}\n\n` +
-          metadata.map(info => `${info.travelerName}: ${info.documentType} ${info.documentNumber}`).join('\n'),
-        attachments: await Promise.all(documents.map(async file => ({
-          filename: file.name, content: Buffer.from(await file.arrayBuffer()), contentType: file.type,
+          metadata.map((info, index) => `${index + 1}. ${info.travelerName}: ${info.documentType} ${info.documentNumber}`).join('\n'),
+        attachments: await Promise.all(documents.map(async (file, index) => ({
+          filename: `${index + 1}-${file.name}`, content: Buffer.from(await file.arrayBuffer()), contentType: file.type,
         }))),
       });
       notificationSent = Boolean(mail.accepted?.length);

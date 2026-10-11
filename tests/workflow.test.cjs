@@ -132,6 +132,25 @@ test('successful upload notifies with canonical booking data and strict TLS', as
   assert.equal(result.notificationSent, true); assert.match(sent.data.text, /guest@example.invalid/); assert.doesNotMatch(sent.data.text, /different@example.invalid/);
   assert.equal(sent.config.tls.rejectUnauthorized, true); assert.equal(sent.config.requireTLS, true); assert.equal(sent.config.debug, false);
 });
+test('admin notifications keep duplicate original filenames separate and align them with guest details', async () => {
+  let sent;
+  const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json({ success: true, storedCount: 2, bookingId: 42 }),
+    mail: async data => { sent = data; return { accepted: ['admin@example.invalid'] }; } });
+  assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 2))).status, 201);
+  assert.equal(sent.attachments[0].filename, '1-same-name.pdf');
+  assert.equal(sent.attachments[1].filename, '2-same-name.pdf');
+  assert.match(sent.text, /1\. Synthetic Guest/); assert.match(sent.text, /2\. Synthetic Guest/);
+});
+test('guest upload receipts preserve controlled errors and reconcile lost or malformed acknowledgements', async () => {
+  const form = new FormData();
+  const good = loader({ fetch: async () => json({ success: true, wordpressStorage: true, message: 'Saved without notification' }, 201) });
+  assert.equal(await good('lib/submit-documents.ts').submitDocuments(form), 'Saved without notification');
+  const rejected = loader({ fetch: async () => json({ success: false, error: 'Choose a readable file' }, 400) });
+  await assert.rejects(rejected('lib/submit-documents.ts').submitDocuments(form), /Choose a readable file/);
+  for (const fetch of [async () => { throw new TypeError('Failed to fetch'); }, async () => new Response('gateway HTML'), async () => json(null), async () => json({ success: true })]) {
+    await assert.rejects(loader({ fetch })('lib/submit-documents.ts').submitDocuments(form), /contact Villa Claudia before uploading again/);
+  }
+});
 test('oversized request and excessive file count are rejected', async () => {
   const load = loader({ fetch: async () => json(booking) });
   const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: 'small', headers: { 'Content-Length': String(28 * 1024 * 1024) } });

@@ -2,6 +2,7 @@
 
 import React, { useState, useReducer, useRef, useEffect } from "react";
 import { FileUpload } from "@/components/ui/file-upload";
+import { submitDocuments } from "@/lib/submit-documents";
 
 // EU countries list
 const euCountries = [
@@ -312,17 +313,8 @@ export default function DocumentUploadForm({
         }
       });
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData
-      });
-
-      const data = await response.json();
-      if (!response.ok || data.success !== true || data.wordpressStorage !== true) {
-        throw new Error(data.error || "Upload failed");
-      }
-
-      dispatch({ type: 'SUCCESS', message: data.message || 'Your documents have been saved.' });
+      const message = await submitDocuments(formData);
+      dispatch({ type: 'SUCCESS', message });
     } catch (error) {
       console.error("Upload error:", error);
       dispatch({ type: 'ERROR', message: error instanceof Error ? error.message : "Upload failed" });
