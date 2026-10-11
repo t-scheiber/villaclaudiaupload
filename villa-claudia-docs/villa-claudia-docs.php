@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.7.2
+ * Version: 1.7.3
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -496,8 +496,13 @@ class Villa_Claudia_Docs {
     
     public function display_documents_meta_box($post) {
         if ($this->active_booking($post->ID)) {
-            $url = 'https://documents.villa-claudia.eu/uploads/' . $this->get_secure_booking_id($post->ID);
-            echo '<p><a target="_blank" rel="noreferrer" href="' . esc_url($url) . '">Open guest upload link</a></p>';
+            $token = $this->get_secure_booking_id($post->ID);
+            if (is_wp_error($token)) {
+                echo '<p>' . esc_html($token->get_error_message()) . '</p>';
+            } else {
+                $url = 'https://documents.villa-claudia.eu/uploads/' . $token;
+                echo '<p><a target="_blank" rel="noreferrer" href="' . esc_url($url) . '">Open guest upload link</a></p>';
+            }
         }
         $documents = get_post_meta($post->ID, 'villa_claudia_document');
         
@@ -557,7 +562,7 @@ class Villa_Claudia_Docs {
                             
                             $.post(ajaxurl, data, function(response) {
                                 if (response.success) {
-                                    alert("Documents sent successfully!");
+                                    alert(response.data);
                                 } else {
                                     alert("Error: " + response.data);
                                 }
@@ -648,7 +653,7 @@ class Villa_Claudia_Docs {
         return array(
             'status' => 'success',
             'message' => 'API is working correctly',
-            'version' => '1.0.6',
+            'version' => '1.7.3',
             'wordpress' => get_bloginfo('version'),
             'timestamp' => current_time('mysql')
         );
@@ -783,10 +788,14 @@ class Villa_Claudia_Docs {
                                 <td>
                                     <?php 
                                     $secure_id = $this->get_secure_booking_id($booking_id);
+                                    if (is_wp_error($secure_id)) {
+                                        echo esc_html($secure_id->get_error_message());
+                                    } else {
                                     
                                     // Use the documents subdomain for the booking URL
                                     $upload_url = 'https://documents.villa-claudia.eu/uploads/' . $secure_id;
                                     echo '<a href="#" onclick="navigator.clipboard.writeText(\'' . $upload_url . '\');alert(\'URL copied!\');return false;" title="Click to copy">' . $upload_url . '</a>';
+                                    }
                                     ?>
                                 </td>
                                 <td>
@@ -941,6 +950,10 @@ class Villa_Claudia_Docs {
             
             // Get secure booking ID and create link
             $secure_id = $this->get_secure_booking_id($booking_id);
+            if (is_wp_error($secure_id)) {
+                wp_redirect(add_query_arg('email_sent', 'error', wp_get_referer()));
+                exit;
+            }
             
             // Use the documents subdomain for the booking URL
             $upload_url = 'https://documents.villa-claudia.eu/uploads/' . $secure_id;
@@ -1065,82 +1078,18 @@ class Villa_Claudia_Docs {
         $message .= "Booking ID: " . esc_html($booking_id) . "\r\n\r\n";
         $message .= "Best regards,\r\nVilla Claudia";
         
-        // Prepare attachments
-        $attachments = array();
-        $upload_dir = wp_upload_dir();
-        $temp_dir = $upload_dir['basedir'] . '/booking-documents/temp-' . $booking_id . '-' . time();
-        
-        // Create temporary directory for renamed files
-        if (!file_exists($temp_dir)) {
-            wp_mkdir_p($temp_dir);
-        }
-        
-        $temp_files = array(); // Track temp files to delete later
-        
-        foreach ($documents as $document) {
-            if ($document['status'] === 'verified') {
-                $original_file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
-                if (file_exists($original_file_path)) {
-                    // Get file extension
-                    $file_extension = pathinfo($original_file_path, PATHINFO_EXTENSION);
-                    
-                    // Create sanitized filename with passenger name and document type
-                    $new_filename = sanitize_file_name(
-                        $document['traveler_name'] . '-' . 
-                        ucfirst($document['document_type']) . '-' . 
-                        $document['document_number'] . '.' . 
-                        $file_extension
-                    );
-                    
-                    // New temporary file path
-                    $temp_file_path = $temp_dir . '/' . $new_filename;
-                    
-                    // Copy the file with the new name
-                    if (copy($original_file_path, $temp_file_path)) {
-                        $attachments[] = $temp_file_path;
-                        $temp_files[] = $temp_file_path;
-                    } else {
-                        // If copy fails, use original file
-                        $attachments[] = $original_file_path;
-                    }
-                }
-            }
-        }
-        
-        // Send email
-        $headers = array(
-            'Content-Type: text/plain; charset=UTF-8',
-            'From: Villa Claudia <administration@villa-claudia.eu>'
-        );
-        
         $city_email = $this->get_config_value(
             'villa_claudia_city_email',
             array('VILLA_CLAUDIA_CITY_EMAIL'),
             ''
         );
-        
-        if (!is_email($city_email)) { wp_send_json_error('Configure an approved recipient before sending documents.'); }
-        
-        $sent = wp_mail($city_email, $subject, $message, $headers, $attachments);
-        
-        // Clean up temporary files
-        if (!empty($temp_files)) {
-            foreach ($temp_files as $temp_file) {
-                if (file_exists($temp_file)) {
-                    unlink($temp_file);
-                }
-            }
-            // Remove temp directory
-            rmdir($temp_dir);
+        $result = $this->send_verified_documents($booking_id, $city_email, $subject, $message);
+        if (is_wp_error($result)) {
+            wp_send_json_error($result->get_error_message());
         }
-        
-        if ($sent) {
-            // Update booking meta to mark documents as sent
-            update_post_meta($booking_id, 'villa_claudia_documents_sent', current_time('mysql'));
-            wp_send_json_success('Documents sent successfully');
-        } else {
-            wp_send_json_error('Failed to send email');
-        }
+        wp_send_json_success($result['recorded']
+            ? 'Documents sent successfully'
+            : 'Email accepted, but the sent status could not be saved. Contact the administrator before resending.');
     }
 
     // Add new method for the Send to City page
@@ -1154,84 +1103,16 @@ class Villa_Claudia_Docs {
             $subject = sanitize_text_field($_POST['email_subject']);
             $message = sanitize_textarea_field($_POST['email_message']);
             
-            // Get documents
-            $documents = get_post_meta($booking_id, 'villa_claudia_document');
-            if (empty($documents)) {
-                echo '<div class="notice notice-error"><p>No documents found for this booking.</p></div>';
+            $result = $this->send_verified_documents($booking_id, $recipient_email, $subject, $message);
+            if (is_wp_error($result)) {
+                echo '<div class="notice notice-error"><p>' . esc_html($result->get_error_message()) . '</p></div>';
             } else {
-                // Prepare attachments
-                $attachments = array();
-                $upload_dir = wp_upload_dir();
-                $temp_dir = $upload_dir['basedir'] . '/booking-documents/temp-' . $booking_id . '-' . time();
-                
-                // Create temporary directory for renamed files
-                if (!file_exists($temp_dir)) {
-                    wp_mkdir_p($temp_dir);
-                }
-                
-                $temp_files = array(); // Track temp files to delete later
-                
-                foreach ($documents as $document) {
-                    if (isset($document['status']) && $document['status'] === 'verified') {
-                        $original_file_path = $upload_dir['basedir'] . '/booking-documents/' . $booking_id . '/' . $document['filename'];
-                        if (file_exists($original_file_path)) {
-                            // Get file extension
-                            $file_extension = pathinfo($original_file_path, PATHINFO_EXTENSION);
-                            
-                            // Create sanitized filename with passenger name and document type
-                            $new_filename = sanitize_file_name(
-                                $document['traveler_name'] . '-' . 
-                                ucfirst($document['document_type']) . '-' . 
-                                $document['document_number'] . '.' . 
-                                $file_extension
-                            );
-                            
-                            // New temporary file path
-                            $temp_file_path = $temp_dir . '/' . $new_filename;
-                            
-                            // Copy the file with the new name
-                            if (copy($original_file_path, $temp_file_path)) {
-                                $attachments[] = $temp_file_path;
-                                $temp_files[] = $temp_file_path;
-                            } else {
-                                // If copy fails, use original file
-                                $attachments[] = $original_file_path;
-                            }
-                        }
-                    }
-                }
-                
-                if (empty($attachments)) {
-                    echo '<div class="notice notice-error"><p>No verified documents found for this booking.</p></div>';
-                } else {
-                    // Send email
-                    $headers = array(
-                        'Content-Type: text/plain; charset=UTF-8',
-                        'From: Villa Claudia <administration@villa-claudia.eu>'
-                    );
-                    $sent = wp_mail($recipient_email, $subject, $message, $headers, $attachments);
-                    
-                    // Clean up temporary files
-                    if (!empty($temp_files)) {
-                        foreach ($temp_files as $temp_file) {
-                            if (file_exists($temp_file)) {
-                                unlink($temp_file);
-                            }
-                        }
-                        // Remove temp directory
-                        rmdir($temp_dir);
-                    }
-                    
-                    if ($sent) {
-                        update_post_meta($booking_id, 'villa_claudia_documents_sent', current_time('mysql'));
-                        echo '<div class="notice notice-success"><p>Documents sent successfully!</p></div>';
-                    } else {
-                        echo '<div class="notice notice-error"><p>Failed to send email. Please try again.</p></div>';
-                    }
-                }
+                echo '<div class="notice notice-success"><p>' . esc_html($result['recorded']
+                    ? 'Documents sent successfully!'
+                    : 'Email accepted, but the sent status could not be saved. Contact the administrator before resending.') . '</p></div>';
             }
         }
-        
+
         // Get all bookings with documents
         global $wpdb;
         $bookings_with_docs = $wpdb->get_col(
@@ -1323,7 +1204,11 @@ Villa Claudia</textarea>
             
             <script>
             jQuery(document).ready(function($) {
+                var requestVersion = 0;
                 $('#booking_id').on('change', function() {
+                    var version = ++requestVersion;
+                    var sendButton = $('input[name=send_to_city_submit]').prop('disabled', true);
+                    $('#email_subject, #email_message').val('');
                     var bookingId = $(this).val();
                     if (bookingId) {
                         $.post(ajaxurl, {
@@ -1331,6 +1216,7 @@ Villa Claudia</textarea>
                             booking_id: bookingId,
                             nonce: '<?php echo wp_create_nonce("villa_claudia_get_docs"); ?>'
                         }, function(response) {
+                            if (version !== requestVersion || bookingId !== $('#booking_id').val()) { return; }
                             if (response.success) {
                                 var guestName = $('option:selected', '#booking_id').text().split(' - ')[1];
                                 var bookingInfo = $('option:selected', '#booking_id').text().split('Check-in: ')[1].replace(')', '');
@@ -1344,6 +1230,7 @@ Villa Claudia</textarea>
                                     booking_id: bookingId,
                                     nonce: '<?php echo wp_create_nonce("villa_claudia_get_dates"); ?>'
                                 }, function(datesResponse) {
+                                    if (version !== requestVersion || bookingId !== $('#booking_id').val()) { return; }
                                     if (datesResponse.success) {
                                         checkInDate = datesResponse.data.check_in_date;
                                         checkOutDate = datesResponse.data.check_out_date;
@@ -1380,6 +1267,7 @@ Best regards,
 Villa Claudia`;
                                         
                                         $('#email_message').val(messageTemplate);
+                                        sendButton.prop('disabled', false);
                                     }
                                 });
                             }

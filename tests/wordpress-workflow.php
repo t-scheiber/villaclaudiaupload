@@ -24,7 +24,16 @@ function delete_post_meta($id,$key,$value=null){
     return false;
 }
 function wp_upload_dir(){return array('basedir'=>sys_get_temp_dir().'/vc-isolated-nonexistent');}
-$wpdb=new class {public $postmeta='fake_postmeta';public function prepare($sql,$value){return $value;}public function get_var($query){return 42;}};
+function wp_cache_delete($id,$group){global $cache_clear_hook;if($cache_clear_hook){$callback=$cache_clear_hook;$cache_clear_hook=null;$callback();}return true;}
+$wpdb=new class {
+    public $postmeta='fake_postmeta'; public $lock_available=true; public $lock_calls=array();
+    public function prepare($sql,$value){return array($sql,$value);}
+    public function get_var($query){
+        if (str_contains($query[0],'GET_LOCK')) { $this->lock_calls[]='acquire'; return $this->lock_available ? 1 : 0; }
+        if (str_contains($query[0],'RELEASE_LOCK')) { $this->lock_calls[]='release'; return 1; }
+        return 42;
+    }
+};
 require $argv[1];
 class Harness { use Villa_Claudia_Workflow; public function remove($id,$name){return $this->remove_stored_document($id,$name);} public function issue($id){return $this->get_secure_booking_id($id);} public function resolve($token){return $this->resolve_upload_booking($token);} public function get_booking_data($r){$id=$r->get_param('id');return array('bookingId'=>$id,'checkInDate'=>get_post_meta($id,'mphb_check_in_date',true),'checkOutDate'=>get_post_meta($id,'mphb_check_out_date',true),'guestEmail'=>get_post_meta($id,'mphb_email',true),'guestName'=>'Fixture','status'=>'confirmed');} }
 function check($condition,$description){if(!$condition){fwrite(STDERR,"FAIL: $description\n");exit(1);}echo "PASS: $description\n";}
@@ -35,6 +44,11 @@ update_post_meta(42,'mphb_email','fixture@example.invalid');
 update_post_meta(42,'villa_claudia_secure_id','422026092920261006');
 check(is_wp_error($h->resolve('422026092920261006')),'persisted legacy tokens rejected');
 $token=$h->issue(42);check((bool)preg_match('/\Avc_[a-f0-9]{64}\z/',$token),'opaque random token issued');
+check($h->issue(42)===$token,'serialized token issuance reuses persisted link');
+check($wpdb->lock_calls===array('acquire','release','acquire','release'),'token issuance always releases its database lock');
+$wpdb->lock_available=false;
+check($h->issue(42)->code==='token_busy','unavailable token lock fails without replacing the link');
+$wpdb->lock_available=true;
 check($h->resolve($token)===42,'valid token resolves canonical booking');
 check(is_wp_error($h->resolve(strtoupper($token))),'case-altered token rejected');
 check(is_wp_error($h->resolve('vc_'.str_repeat('0',64))),'exact token comparison after database lookup');
@@ -63,3 +77,9 @@ $delete_failure=true;
 check($h->remove(42,'keep.png')->code==='delete_failed','database deletion failure is reported');
 check(count($meta[42]['villa_claudia_document'])===2,'failed deletion preserves other records');
 check($h->remove(42,'missing.png')->code==='document_not_found','missing document does not report successful deletion');
+$options=array();
+update_post_meta(42,'mphb_email','before-race@example.invalid');
+$cache_clear_hook=function(){update_post_meta(42,'mphb_email','after-race@example.invalid');};
+check($h->claim_reminder($r)->code==='booking_changed','booking correction during token issuance cannot return a different reminder snapshot');
+check(empty($options),'known unsent reminder releases only its original claim');
+check($h->claim_reminder($r)['claimed']===true,'corrected booking can claim a replacement reminder');

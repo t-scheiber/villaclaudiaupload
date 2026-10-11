@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Restaurant Posts Zigzag
  * Description: Displays restaurant posts in a zigzag layout for both default WordPress and Divi editor
- * Version: 1.4.4
+ * Version: 1.4.5
  * Author: Thomas Scheiber
  * Text Domain: restaurant-posts-zigzag
  */
@@ -151,7 +151,8 @@ function rpz_enqueue_scripts() {
 }
 /* Responsive styles */
 @media only screen and (max-width: 768px) {
-    .rpz-item-inner,
+    .rpz-item-left .rpz-item-inner,
+    .rpz-item-right .rpz-item-inner,
     .et_pb_module .rpz-item-inner {
         flex-direction: column !important;
     }
@@ -167,6 +168,10 @@ function rpz_enqueue_scripts() {
     .et_pb_module .rpz-image {
         margin-bottom: 20px;
     }
+}
+@media (prefers-reduced-motion: reduce) {
+    .rpz-image, .rpz-image img, .rpz-title a { transition: none; }
+    .rpz-image:hover, .rpz-image:hover img { transform: none; }
 }';
 
     // Inline CSS
@@ -174,74 +179,7 @@ function rpz_enqueue_scripts() {
     wp_enqueue_style('rpz-inline-style');
     wp_add_inline_style('rpz-inline-style', $css);
     
-    // JS functionality
-    $js = 'document.addEventListener("DOMContentLoaded", function() {
-    // Add smooth scroll effect when clicking on restaurant links
-    const restaurantLinks = document.querySelectorAll(".rpz-title a");
-    if (restaurantLinks.length > 0) {
-        restaurantLinks.forEach(function(link) {
-            link.addEventListener("click", function(e) {
-                // Only apply if not opening in new tab
-                if (!e.ctrlKey && !e.metaKey) {
-                    e.preventDefault();
-                    const href = this.getAttribute("href");
-                    
-                    // Smooth scroll animation
-                    document.querySelector("html, body").animate({
-                        scrollTop: 0
-                    }, 800, function() {
-                        window.location = href;
-                    });
-                }
-            });
-        });
-    }
-    
-    // Add animation on scroll
-    const zigzagItems = document.querySelectorAll(".rpz-zigzag-item");
-    if (zigzagItems.length > 0) {
-        // Simple visibility check function
-        function isElementInView(el) {
-            const rect = el.getBoundingClientRect();
-            return (
-                rect.top >= 0 &&
-                rect.left >= 0 &&
-                rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-                rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-            );
-        }
-        
-        // Add visible class when element is in view
-        function handleAnimation() {
-            zigzagItems.forEach(function(item) {
-                if (isElementInView(item)) {
-                    item.classList.add("rpz-visible");
-                }
-            });
-        }
-        
-        // Add animation class and event listeners
-        zigzagItems.forEach(function(item) {
-            item.style.opacity = "0";
-            item.style.transform = "translateY(20px)";
-            item.style.transition = "opacity 0.5s ease, transform 0.5s ease";
-        });
-        
-        // Add CSS for visible class
-        const style = document.createElement("style");
-        style.innerHTML = ".rpz-visible { opacity: 1 !important; transform: translateY(0) !important; }";
-        document.head.appendChild(style);
-        
-        // Check on scroll and initially
-        window.addEventListener("scroll", handleAnimation);
-        handleAnimation();
-    }
-});';
 
-    // Inline JS
-    wp_register_script('rpz-inline-script', '', [], '1.0.0', true);
-    wp_enqueue_script('rpz-inline-script');
-    wp_add_inline_script('rpz-inline-script', $js);
 }
 add_action('wp_enqueue_scripts', 'rpz_enqueue_scripts');
 
