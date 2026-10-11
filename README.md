@@ -24,7 +24,7 @@ php tests/wordpress-rates.php rates-display-plugin/villa-claudia-rates-display.p
 
 These tests do not load a production database or send email. The forwarding checks use synthetic local files and a mail stub.
 
-Hostinger builds `main` with npm and deploys `.next`. Deploy both plugin PHP files together and the CLI cron script separately. Changing the Git repository does not install the WordPress plugin. Back up files, database, and server environment outside the web root before deployment.
+Hostinger builds `main` with npm and deploys `.next`. Production builds use the supported Webpack backend because the hosting build runner fails to connect to Turbopack's CSS subprocess. Local development still uses Turbopack. Deploy both plugin PHP files together and the CLI cron script separately. Changing the Git repository does not install the WordPress plugin. Back up files, database, and server environment outside the web root before deployment.
 
 ## Guest access and storage
 
