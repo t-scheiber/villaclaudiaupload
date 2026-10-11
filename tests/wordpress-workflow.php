@@ -26,10 +26,10 @@ function delete_post_meta($id,$key,$value=null){
 function wp_upload_dir(){return array('basedir'=>sys_get_temp_dir().'/vc-isolated-nonexistent');}
 function wp_cache_delete($id,$group){global $cache_clear_hook;if($cache_clear_hook){$callback=$cache_clear_hook;$cache_clear_hook=null;$callback();}return true;}
 $wpdb=new class {
-    public $postmeta='fake_postmeta'; public $lock_available=true; public $lock_calls=array();
+    public $postmeta='fake_postmeta'; public $prefix='test_'; public $lock_available=true; public $lock_calls=array(); public $lock_names=array();
     public function prepare($sql,$value){return array($sql,$value);}
     public function get_var($query){
-        if (str_contains($query[0],'GET_LOCK')) { $this->lock_calls[]='acquire'; return $this->lock_available ? 1 : 0; }
+        if (str_contains($query[0],'GET_LOCK')) { $this->lock_calls[]='acquire'; $this->lock_names[]=$query[1]; return $this->lock_available ? 1 : 0; }
         if (str_contains($query[0],'RELEASE_LOCK')) { $this->lock_calls[]='release'; return 1; }
         return 42;
     }
@@ -46,6 +46,9 @@ check(is_wp_error($h->resolve('422026092920261006')),'persisted legacy tokens re
 $token=$h->issue(42);check((bool)preg_match('/\Avc_[a-f0-9]{64}\z/',$token),'opaque random token issued');
 check($h->issue(42)===$token,'serialized token issuance reuses persisted link');
 check($wpdb->lock_calls===array('acquire','release','acquire','release'),'token issuance always releases its database lock');
+$first_site_lock=end($wpdb->lock_names);$wpdb->prefix='another_site_';
+check($h->issue(42)===$token && end($wpdb->lock_names)!==$first_site_lock,'different WordPress sites use separate token locks for the same booking number');
+$wpdb->prefix='test_';
 $wpdb->lock_available=false;
 check($h->issue(42)->code==='token_busy','unavailable token lock fails without replacing the link');
 $wpdb->lock_available=true;
