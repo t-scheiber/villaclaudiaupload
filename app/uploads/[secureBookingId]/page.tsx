@@ -16,6 +16,6 @@ export default async function BookingUploadPage({ params }: { params: Promise<{ 
   return <div className="container mx-auto py-20"><div className="text-center max-w-3xl mx-auto">
     <h1 className="text-3xl font-bold mb-6">Upload Documents</h1>
     <p className="mb-6">Please upload your travel documents for your stay at Villa Claudia</p>
-    <DocumentUploadForm bookingId={secureBookingId} bookingData={{ ...booking, bookingReference: `VC-${booking.bookingId}` }} email={booking.guestEmail} maxTravelers={8} />
+    <DocumentUploadForm bookingId={secureBookingId} bookingData={{ ...booking, bookingReference: `VC-${booking.bookingId}` }} maxTravelers={8} />
   </div></div>;
 }

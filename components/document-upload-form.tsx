@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useReducer, useRef } from "react";
+import React, { useState, useReducer, useRef, useEffect } from "react";
 import { FileUpload } from "@/components/ui/file-upload";
 
 // EU countries list
@@ -76,9 +76,10 @@ interface TravelerCardProps {
   onRemove: () => void;
   onUpdate: (field: string, value: string) => void;
   onFileSelected: (files: File[]) => void;
+  disabled: boolean;
 }
 
-function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSelected }: TravelerCardProps) {
+function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSelected, disabled }: TravelerCardProps) {
   return (
     <div className="mb-4 p-4 border border-gray-200 rounded">
       <div className="flex items-center justify-between mb-3">
@@ -104,6 +105,7 @@ function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSe
           value={traveler.name}
           onChange={(e) => onUpdate('name', e.target.value)}
           className="w-full p-2 border border-gray-300 rounded"
+          maxLength={200}
           required
         />
       </div>
@@ -166,6 +168,7 @@ function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSe
           value={traveler.documentNumber}
           onChange={(e) => onUpdate('documentNumber', e.target.value)}
           className="w-full p-2 border border-gray-300 rounded"
+          maxLength={100}
           required
         />
       </div>
@@ -175,6 +178,7 @@ function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSe
           Upload Document <span className="text-red-500">*</span>
         </label>
         <FileUpload
+          disabled={disabled}
           onFilesSelected={onFileSelected}
           maxFiles={1}
           acceptedFileTypes={["image/jpeg", "image/png", "application/pdf"]}
@@ -182,8 +186,8 @@ function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSe
           id={`file-upload-${traveler.id}`}
         />
         {traveler.file && (
-          <p className="mt-2 text-sm text-green-600">
-            Document uploaded: {traveler.file.name}
+          <p className="mt-2 text-sm text-green-700 break-all" role="status">
+            Document selected: {traveler.file.name}
           </p>
         )}
       </div>
@@ -220,18 +224,16 @@ interface DocumentUploadFormProps {
     checkOutDate?: string;
     bookingReference?: string;
   };
-  email?: string;
   maxTravelers?: number;
 }
 
 export default function DocumentUploadForm({
   bookingId,
   bookingData,
-  email = '',
   maxTravelers = 8
 }: DocumentUploadFormProps) {
-  const [travelers, setTravelers] = useState<Traveler[]>([newTraveler()]);
-  const emailRef = useRef<HTMLInputElement>(null);
+  const [travelers, setTravelers] = useState<Traveler[]>([{ id: 'guest-1', name: '', documentType: 'passport', documentNumber: '', citizenship: 'other' }]);
+  const feedbackRef = useRef<HTMLDivElement>(null);
   const [submitState, dispatch] = useReducer(submitReducer, {
     isSubmitting: false,
     error: '',
@@ -239,10 +241,12 @@ export default function DocumentUploadForm({
     message: '',
   });
 
+  useEffect(() => {
+    if (submitState.error || submitState.success) feedbackRef.current?.focus();
+  }, [submitState.error, submitState.success]);
+
   const handleFilesSelected = (files: File[], travelerIndex: number) => {
-    if (files.length > 0) {
-      setTravelers(prev => prev.map((t, i) => i === travelerIndex ? { ...t, file: files[0] } : t));
-    }
+    setTravelers(prev => prev.map((t, i) => i === travelerIndex ? { ...t, file: files[0] } : t));
   };
 
   const addTraveler = () => {
@@ -270,14 +274,20 @@ export default function DocumentUploadForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitState.isSubmitting) return;
 
     if (travelers.some(t => !t.file)) {
       dispatch({ type: 'ERROR', message: "Please upload a document for each guest" });
       return;
     }
 
-    if (travelers.some(t => !t.name)) {
-      dispatch({ type: 'ERROR', message: "Please enter names for all guests" });
+    if (travelers.some(t => !t.name.trim() || !t.documentNumber.trim())) {
+      dispatch({ type: 'ERROR', message: "Please enter a name and document number for each guest" });
+      return;
+    }
+
+    if (travelers.reduce((sum, traveler) => sum + (traveler.file?.size || 0), 0) > 25 * 1024 * 1024) {
+      dispatch({ type: 'ERROR', message: 'The documents together exceed 25 MiB. Please choose smaller files.' });
       return;
     }
 
@@ -286,9 +296,6 @@ export default function DocumentUploadForm({
     try {
       const formData = new FormData();
       formData.append("bookingId", bookingId);
-      formData.append("email", emailRef.current?.value ?? '');
-      formData.append("travelers", JSON.stringify(travelers));
-      formData.append("guestName", travelers[0].name);
 
       travelers.forEach((traveler, index) => {
         if (traveler.file) {
@@ -322,8 +329,8 @@ export default function DocumentUploadForm({
 
   if (submitState.success) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-8">
-        <h2 className="text-2xl font-semibold text-green-600 mb-4">Documents Uploaded Successfully!</h2>
+      <div ref={feedbackRef} tabIndex={-1} role="status" className="bg-white rounded-lg shadow-md p-8">
+        <h2 className="text-2xl font-semibold text-green-700 mb-4">Your documents are saved</h2>
         <p className="mb-4">{submitState.message}</p>
         <p>We look forward to welcoming you at Villa Claudia.</p>
       </div>
@@ -351,14 +358,14 @@ export default function DocumentUploadForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="text-left">
+      <form onSubmit={handleSubmit} className="text-left" aria-busy={submitState.isSubmitting}>
         {submitState.error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-700">
+          <div ref={feedbackRef} tabIndex={-1} role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-700">
             {submitState.error}
           </div>
         )}
 
-        <div className="mb-6">
+        <fieldset disabled={submitState.isSubmitting} className="mb-6 min-w-0">
           <div className="block mb-2 font-medium">
             Guest Information <span className="text-red-500">*</span>
           </div>
@@ -367,6 +374,7 @@ export default function DocumentUploadForm({
             <TravelerCard
               key={traveler.id}
               traveler={traveler}
+              disabled={submitState.isSubmitting}
               index={index}
               canRemove={travelers.length > 1}
               onRemove={() => removeTraveler(index)}
@@ -384,33 +392,20 @@ export default function DocumentUploadForm({
               + Add Another Guest
             </button>
           )}
-        </div>
+        </fieldset>
 
-        <div className="mb-6">
-          <label htmlFor="email" className="block mb-2 font-medium">
-            Email Address
-          </label>
-          <input
-            type="email"
-            id="email"
-            defaultValue={email}
-            ref={emailRef}
-            className="w-full p-3 border border-gray-300 rounded"
-          />
-          <p className="mt-1 text-sm text-gray-500">
-            Optional, but recommended to receive confirmation
-          </p>
-        </div>
+        <p className="mb-6 text-sm text-gray-700">Choose one document for each guest. Use JPEG, PNG or PDF files, up to 10 MiB each and 25 MiB in total. Documents are saved only when you submit this form.</p>
 
         <div className="text-center">
           <button
             type="submit"
             disabled={submitState.isSubmitting}
-            className="px-6 py-3 bg-amber-600 text-white font-medium rounded hover:bg-amber-700 disabled:bg-gray-400"
+            className="px-6 py-3 bg-amber-700 text-white font-medium rounded hover:bg-amber-800 disabled:bg-gray-500"
           >
             {submitState.isSubmitting ? "Uploading..." : "Submit Documents"}
           </button>
         </div>
+        <p role="status" className="mt-3 text-center text-sm text-gray-700">{submitState.isSubmitting ? 'Saving your documents. Please keep this page open.' : ''}</p>
       </form>
     </div>
   );

@@ -13,7 +13,16 @@ Set these server variables in Hostinger. Never commit values or include them in 
 - `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_FROM`, `ADMIN_EMAIL`.
 - `EMAIL_PORT`: 465 for implicit TLS or 587 for STARTTLS. Certificate validation is required.
 
-Install with `npm ci`; run `npm test`, `npm run lint`, and `npm run build`. Run PHP checks with `php tests/wordpress-workflow.php villa-claudia-docs/workflow.php`. The PHP test does not load a production database.
+Install with `npm ci`; run `npm test`, `npm run lint`, and `npm run build`. Run the isolated PHP checks with:
+
+```sh
+php tests/wordpress-workflow.php villa-claudia-docs/workflow.php
+php tests/wordpress-calendar.php villa-claudia-docs/villa-claudia-docs.php
+php tests/wordpress-forwarding.php villa-claudia-docs/workflow.php
+php tests/wordpress-rates.php rates-display-plugin/villa-claudia-rates-display.php
+```
+
+These tests do not load a production database or send email. The forwarding checks use synthetic local files and a mail stub.
 
 Hostinger builds `main` with npm and deploys `.next`. Deploy both plugin PHP files together and the CLI cron script separately. Changing the Git repository does not install the WordPress plugin. Back up files, database, and server environment outside the web root before deployment.
 
@@ -26,6 +35,8 @@ The same token resolver protects the page, booking API, and upload API. Browser-
 Uploads allow 1-8 JPEG, PNG, or PDF files, at most 10 MiB each and 25 MiB total. WordPress verifies file contents using MIME detection, chooses random names, and rolls back a batch if storage fails. Files remain under `wp-content/uploads/booking-documents/<booking ID>/`; direct web access must be denied. Admin download/delete routes require WordPress capabilities and nonces. New documents await review.
 
 The application reports success only after WordPress confirms every file was saved. If the admin email fails after storage, the guest sees that documents are saved and is told not to upload them again. SMTP acceptance is not proof of inbox delivery.
+
+Removing a selected file clears it from the submitted guest data. Guests can replace a file without removing it first, and the form checks the combined 25 MiB limit before sending. Controls and drop handlers stay locked during submission. A lost response or upstream upload gateway error requires reconciliation with Villa Claudia before uploading again.
 
 ## Reminders
 
@@ -40,5 +51,9 @@ Definitive SMTP failures release the claim for retry. Ambiguous disconnects or f
 Disable LiteSpeed REST caching and purge cached private responses. Private API routes also emit no-store headers. Keep backup PHP files, environment files, logs, and document files inaccessible through HTTP. Preserve the configured document-forwarding recipient; sending from the admin UI is an explicit operator action and does not establish authority registration.
 
 The plugin registers `vc_five_minutes` and adds it to MotoPress's calendar interval selector. Production uses this interval to preserve its existing five-minute synchronization cadence while keeping the saved setting and scheduled event consistent. A missing event is rescheduled after all plugins load, because MotoPress can initialize before this custom interval is registered. Select another supported interval in MotoPress if changing the cadence. Admin document deletion removes only the selected metadata record, preserving concurrent uploads; storage failures are reported.
+
+Document forwarding requires every verified file to exist and be readable. Each send uses a private temporary directory and a different filename for every attachment, including front and back scans of the same document. Temporary copies are removed after success or failure. The operator sees a warning if mail was accepted but the sent status could not be recorded. Link issuance uses a database lock, and a booking correction during reminder preparation releases the unsent claim before another attempt.
+
+The rates plugin uses MotoPress's currency formatter and keeps the selected year filter. It never substitutes another year's seasons when prices for the requested year are missing. Restaurant links use normal browser navigation, and cards remain visible on narrow screens and with reduced motion.
 
 Booking/payment settings are in WordPress, not this Next.js app. Check-in is 15:00, timezone Europe/Zagreb, and WooCommerce uses the published basket page. Stripe production mode remains enabled. A healthy webhook and account configuration do not prove a completed card payment, 3-D Secure challenge, refund, or guest inbox delivery. Verify those separately in an isolated test environment before claiming complete payment end-to-end coverage.

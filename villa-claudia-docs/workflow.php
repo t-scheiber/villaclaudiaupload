@@ -11,6 +11,14 @@ trait Villa_Claudia_Workflow {
     }
 
     private function get_secure_booking_id($id) {
+        global $wpdb;
+        $lock = 'vc-token-' . absint($id);
+        if ((int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 5)', $lock)) !== 1) {
+            return new WP_Error('token_busy', 'The upload link is being updated. Refresh and try again.', array('status' => 503));
+        }
+        try {
+        // Another request may have issued the token while this request waited.
+        wp_cache_delete($id, 'post_meta');
         $token = get_post_meta($id, 'villa_claudia_secure_id', true);
         $fingerprint = $this->booking_fingerprint($id);
         if (!is_string($token) || !preg_match('/\Avc_[a-f0-9]{64}\z/', $token) ||
@@ -19,7 +27,14 @@ trait Villa_Claudia_Workflow {
             update_post_meta($id, 'villa_claudia_secure_id', $token);
             update_post_meta($id, 'villa_claudia_token_fingerprint', $fingerprint);
         }
+        if (get_post_meta($id, 'villa_claudia_secure_id', true) !== $token ||
+            get_post_meta($id, 'villa_claudia_token_fingerprint', true) !== $fingerprint) {
+            return new WP_Error('token_failed', 'The upload link could not be saved. Refresh and try again.', array('status' => 503));
+        }
         return $token;
+        } finally {
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock));
+        }
     }
 
     private function active_booking($id) {
@@ -76,6 +91,61 @@ trait Villa_Claudia_Workflow {
             if (is_array($doc) && $this->document_path($id, $doc['filename'] ?? '')) { return true; }
         }
         return false;
+    }
+
+    private function send_verified_documents($id, $recipient, $subject, $message) {
+        if (!is_email($recipient)) {
+            return new WP_Error('invalid_recipient', 'Configure an approved recipient before sending documents.', array('status' => 400));
+        }
+        $verified = array();
+        foreach (get_post_meta($id, 'villa_claudia_document') as $document) {
+            if (!is_array($document) || ($document['status'] ?? '') !== 'verified') { continue; }
+            $path = $this->document_path($id, $document['filename'] ?? '');
+            if (!$path || !is_readable($path) || filesize($path) < 1) {
+                return new WP_Error('missing_document', 'A verified document is missing or unreadable. No email was sent. Review this booking before retrying.', array('status' => 409));
+            }
+            $verified[] = array('document' => $document, 'path' => $path);
+        }
+        if (!$verified) {
+            return new WP_Error('no_documents', 'No verified documents found for this booking.', array('status' => 400));
+        }
+        $root = wp_upload_dir()['basedir'] . '/booking-documents';
+        $temp_dir = $root . '/send-' . bin2hex(random_bytes(16));
+        $temp_files = array();
+        try {
+            $protection = "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder deny,allow\nDeny from all\n</IfModule>\n";
+            if (!wp_mkdir_p($root) || file_put_contents($root . '/.htaccess', $protection) === false ||
+                !mkdir($temp_dir, 0700) || !chmod($temp_dir, 0700)) {
+                throw new RuntimeException('Protected temporary storage is unavailable.');
+            }
+            foreach ($verified as $index => $item) {
+                $document = $item['document'];
+                $label = preg_replace('/[^a-zA-Z0-9_-]/', '-', $document['traveler_name'] . '-' . $document['document_type']);
+                $extension = strtolower(pathinfo($item['path'], PATHINFO_EXTENSION));
+                if (!in_array($extension, array('jpg', 'jpeg', 'png', 'pdf'), true)) { $extension = 'bin'; }
+                $name = substr($label, 0, 120) . '-' . ($index + 1) . '.' . $extension;
+                $path = $temp_dir . '/' . $name;
+                $temp_files[] = $path;
+                if (!copy($item['path'], $path) || !chmod($path, 0600)) {
+                    throw new RuntimeException('A document could not be prepared.');
+                }
+            }
+            $sent = wp_mail($recipient, $subject, $message, array(
+                'Content-Type: text/plain; charset=UTF-8',
+                'From: Villa Claudia <administration@villa-claudia.eu>',
+            ), $temp_files);
+            if (!$sent) {
+                return new WP_Error('mail_failed', 'Email delivery was not confirmed. Check the mail logs before retrying.', array('status' => 502));
+            }
+            $sent_at = current_time('mysql');
+            update_post_meta($id, 'villa_claudia_documents_sent', $sent_at);
+            return array('recorded' => get_post_meta($id, 'villa_claudia_documents_sent', true) === $sent_at);
+        } catch (Throwable $error) {
+            return new WP_Error('forwarding_failed', 'Document forwarding could not be completed. Check the document and mail logs before retrying.', array('status' => 500));
+        } finally {
+            foreach ($temp_files as $path) { if (is_file($path)) { unlink($path); } }
+            if (is_dir($temp_dir)) { rmdir($temp_dir); }
+        }
     }
 
     private function remove_stored_document($id, $filename) {
@@ -162,6 +232,7 @@ trait Villa_Claudia_Workflow {
 
     public function claim_reminder($request) {
         $id = absint($request->get_param('bookingId'));
+        $claimed_fingerprint = $this->booking_fingerprint($id);
         $checkin = get_post_meta($id, 'mphb_check_in_date', true);
         $today = new DateTimeImmutable('today', wp_timezone());
         if (!$this->active_booking($id) || $this->has_stored_documents($id) || !is_email(get_post_meta($id, 'mphb_email', true)) ||
@@ -171,12 +242,18 @@ trait Villa_Claudia_Workflow {
         }
         $claim = bin2hex(random_bytes(24));
         // add_option is atomic through the unique option_name. Uncertain claims require reconciliation.
-        if (!add_option($this->reminder_key($id), $claim, '', false)) { return array('claimed' => false, 'pending' => true); }
+        $claim_key = 'vc_reminder_' . $id . '_' . substr($claimed_fingerprint, 0, 32);
+        if (!add_option($claim_key, $claim, '', false)) { return array('claimed' => false, 'pending' => true); }
         $token = $this->get_secure_booking_id($id);
+        if (is_wp_error($token)) {
+            if (get_option($claim_key) === $claim) { delete_option($claim_key); }
+            return $token;
+        }
         $lookup = new WP_REST_Request('GET'); $lookup->set_param('id', $id);
         $booking = $this->get_booking_data($lookup);
         $snapshot = is_wp_error($booking) ? '' : hash('sha256', implode('|', array($booking['checkInDate'], $booking['checkOutDate'], $booking['guestEmail'])));
-        if ($snapshot !== get_post_meta($id, 'villa_claudia_token_fingerprint', true)) {
+        if ($snapshot !== $claimed_fingerprint || $snapshot !== get_post_meta($id, 'villa_claudia_token_fingerprint', true)) {
+            if (get_option($claim_key) === $claim) { delete_option($claim_key); }
             return new WP_Error('booking_changed', 'Booking changed while preparing the reminder.', array('status' => 409));
         }
         return array('claimed' => true, 'claimId' => $claim, 'uploadToken' => $token, 'booking' => $booking);

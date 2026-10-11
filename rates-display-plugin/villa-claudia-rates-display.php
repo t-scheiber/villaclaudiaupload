@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Rates Display
  * Description: Displays seasonal rates for Villa Claudia from MotoPress Hotel Booking
- * Version: 1.9.3
+ * Version: 1.9.4
  * Author: Thomas Scheiber
  */
 
@@ -285,9 +285,6 @@ if (!function_exists('vcr_rates_shortcode')) {
             }
 
             $rows = vcr_rates_build_rows($mphb, $season_prices, $year);
-            if (empty($rows)) {
-                $rows = vcr_rates_build_rows($mphb, $season_prices, 0);
-            }
 
             if (empty($rows)) {
                 continue;
@@ -340,7 +337,7 @@ if (!function_exists('vcr_rates_shortcode')) {
             }
 
             $price = method_exists($season_price, 'getPrice') ? $season_price->getPrice() : 0;
-            $price_html = method_exists($mphb, 'format_price') ? $mphb->format_price($price) : esc_html($price);
+            $price_html = function_exists('mphb_format_price') ? mphb_format_price($price) : esc_html($price);
 
             $rows[] = array(
                 'name' => vcr_get_season_name($season),
