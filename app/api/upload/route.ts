@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       try { info = JSON.parse(String(form.get(`fileMetadata[${index}]`))); }
       catch { throw new WorkflowError(400, 'Invalid document details.'); }
       if (!info || typeof info.travelerName !== 'string' || !info.travelerName.trim() || info.travelerName.length > 200 ||
-          typeof info.documentNumber !== 'string' || info.documentNumber.length > 100 ||
+          typeof info.documentNumber !== 'string' || !info.documentNumber.trim() || info.documentNumber.length > 100 ||
           !['passport', 'id_card', 'residence_permit', 'drivers_license'].includes(info.documentType)) {
         throw new WorkflowError(400, 'Please complete the details for each traveler.');
       }
