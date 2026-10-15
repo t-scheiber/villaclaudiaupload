@@ -4,7 +4,11 @@ export async function submitDocuments(form: FormData): Promise<string> {
   let response: Response;
   let payload: unknown;
   try {
-    response = await fetch('/api/upload', { method: 'POST', body: form });
+    response = await fetch('/api/upload', { method: 'POST', body: form, headers: {
+      'x-booking-token': String(form.get('bookingId') || ''),
+      'x-copy-agreement': form.get('copyAgreement') === 'true' ? 'true' : 'false',
+      'x-copy-case-id': String(form.get('copyCaseId') || ''),
+    } });
     payload = await response.json();
   } catch {
     throw new Error(uncertainStorage);

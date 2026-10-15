@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useReducer, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { FileUpload } from "@/components/ui/file-upload";
 import { submitDocuments } from "@/lib/submit-documents";
+import { copyExceptionAvailable, type CopyException } from '@/lib/wordpress';
+import PrivacyLinks from '@/components/privacy-links';
 
 // EU countries list
 const euCountries = [
@@ -58,349 +60,77 @@ export function acceptsNationalId(citizenship: string): boolean {
   return euCountries.some(country => country.code === citizenship) || ['no', 'is', 'li', 'ch'].includes(citizenship);
 }
 
-type Traveler = {
-  id: string;
-  name: string;
-  documentType: string;
-  documentNumber: string;
-  citizenship: string;
-  file?: File;
-};
-
-function newTraveler(): Traveler {
-  return { id: crypto.randomUUID(), name: '', documentType: 'passport', documentNumber: '', citizenship: 'other' };
-}
-
-// TravelerCard component
-interface TravelerCardProps {
-  traveler: Traveler;
-  index: number;
-  canRemove: boolean;
-  onRemove: () => void;
-  onUpdate: (field: string, value: string) => void;
-  onFileSelected: (files: File[]) => void;
-  disabled: boolean;
-}
-
-function TravelerCard({ traveler, index, canRemove, onRemove, onUpdate, onFileSelected, disabled }: TravelerCardProps) {
-  return (
-    <div className="mb-4 p-4 border border-gray-200 rounded">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-medium">Guest {index + 1}</h3>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-red-700 hover:text-red-800"
-          >
-            Remove
-          </button>
-        )}
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={`travelerName-${traveler.id}`} className="block mb-1 text-sm font-medium">
-          Full Name <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          id={`travelerName-${traveler.id}`}
-          value={traveler.name}
-          onChange={(e) => onUpdate('name', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded"
-          maxLength={200}
-          required
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={`citizenship-${traveler.id}`} className="block mb-1 text-sm font-medium">
-          Citizenship/Nationality <span className="text-red-500">*</span>
-        </label>
-        <select
-          id={`citizenship-${traveler.id}`}
-          value={traveler.citizenship}
-          onChange={(e) => onUpdate('citizenship', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded"
-          required
-        >
-          <option value="" disabled>Select citizenship</option>
-          <optgroup label="European Union">
-            {euCountries.map(country => (
-              <option key={country.code} value={country.code}>{country.name}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Other Countries">
-            {otherCountries.map(country => (
-              <option key={country.code} value={country.code}>{country.name}</option>
-            ))}
-          </optgroup>
-        </select>
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={`documentType-${traveler.id}`} className="block mb-1 text-sm font-medium">
-          Document Type <span className="text-red-500">*</span>
-        </label>
-        <select
-          id={`documentType-${traveler.id}`}
-          value={traveler.documentType}
-          onChange={(e) => onUpdate('documentType', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded"
-          required
-        >
-          <option value="passport">Passport</option>
-          {acceptsNationalId(traveler.citizenship) && (
-            <option value="id_card">National ID Card</option>
-          )}
-        </select>
-        {!acceptsNationalId(traveler.citizenship) && (
-          <p className="mt-1 text-xs text-amber-800">
-            Choose a passport. Contact Villa Claudia if you need to use another document.
-          </p>
-        )}
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={`documentNumber-${traveler.id}`} className="block mb-1 text-sm font-medium">
-          Document Number <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          id={`documentNumber-${traveler.id}`}
-          value={traveler.documentNumber}
-          onChange={(e) => onUpdate('documentNumber', e.target.value)}
-          className="w-full p-2 border border-gray-300 rounded"
-          maxLength={100}
-          required
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={`file-upload-${traveler.id}`} className="block mb-2 font-medium">
-          Upload Document <span className="text-red-500">*</span>
-        </label>
-        <FileUpload
-          disabled={disabled}
-          onFilesSelected={onFileSelected}
-          maxFiles={1}
-          acceptedFileTypes={["image/jpeg", "image/png", "application/pdf"]}
-          maxSizeInMB={10}
-          id={`file-upload-${traveler.id}`}
-        />
-        {traveler.file && (
-          <p className="mt-2 text-sm text-green-700 break-all" role="status">
-            Document selected: {traveler.file.name}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Submit state reducer
-type SubmitState = {
-  isSubmitting: boolean;
-  error: string;
-  success: boolean;
-  message: string;
-};
-
-type SubmitAction =
-  | { type: 'START' }
-  | { type: 'SUCCESS'; message: string }
-  | { type: 'ERROR'; message: string };
-
-function submitReducer(state: SubmitState, action: SubmitAction): SubmitState {
-  switch (action.type) {
-    case 'START': return { isSubmitting: true, error: '', success: false, message: '' };
-    case 'SUCCESS': return { isSubmitting: false, error: '', success: true, message: action.message };
-    case 'ERROR': return { isSubmitting: false, error: action.message, success: false, message: '' };
-    default: return state;
-  }
-}
-
 interface DocumentUploadFormProps {
   bookingId: string;
-  bookingData: {
-    checkInDate: string;
-    checkOutDate?: string;
-    bookingReference?: string;
-  };
-  maxTravelers?: number;
+  bookingData: { checkInDate: string; checkOutDate?: string; bookingReference?: string };
+  copyException: CopyException;
 }
 
-export default function DocumentUploadForm({
-  bookingId,
-  bookingData,
-  maxTravelers = 8
-}: DocumentUploadFormProps) {
-  const [travelers, setTravelers] = useState<Traveler[]>([{ id: 'guest-1', name: '', documentType: 'passport', documentNumber: '', citizenship: 'other' }]);
+export default function DocumentUploadForm({ bookingId, copyException }: DocumentUploadFormProps) {
+  const [citizenship, setCitizenship] = useState('other');
+  const [documentType, setDocumentType] = useState('passport');
+  const [file, setFile] = useState<File>();
+  const [agreement, setAgreement] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(copyException.hasCopies);
+  const [withdrawn, setWithdrawn] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
   const feedbackRef = useRef<HTMLDivElement>(null);
-  const [submitState, dispatch] = useReducer(submitReducer, {
-    isSubmitting: false,
-    error: '',
-    success: false,
-    message: '',
-  });
+  useEffect(() => { if (feedback || error) feedbackRef.current?.focus(); }, [feedback, error]);
 
-  useEffect(() => {
-    if (submitState.error || submitState.success) feedbackRef.current?.focus();
-  }, [submitState]);
-
-  const handleFilesSelected = (files: File[], travelerIndex: number) => {
-    setTravelers(prev => prev.map((t, i) => i === travelerIndex ? { ...t, file: files[0] } : t));
-  };
-
-  const addTraveler = () => {
-    if (travelers.length < maxTravelers) {
-      setTravelers(prev => [...prev, newTraveler()]);
-    }
-  };
-
-  const removeTraveler = (index: number) => {
-    if (travelers.length > 1) {
-      setTravelers(prev => prev.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateTraveler = (index: number, field: string, value: string) => {
-    setTravelers(prev => prev.map((t, i) => {
-      if (i !== index) return t;
-      const updated = { ...t, [field]: value };
-      if (field === 'citizenship' && updated.documentType === 'id_card' && !acceptsNationalId(value)) {
-        updated.documentType = 'passport';
-      }
-      return updated;
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitState.isSubmitting) return;
-
-    if (travelers.some(t => !t.file)) {
-      dispatch({ type: 'ERROR', message: "Please upload a document for each guest" });
-      return;
-    }
-
-    if (travelers.some(t => !t.name.trim() || !t.documentNumber.trim())) {
-      dispatch({ type: 'ERROR', message: "Please enter a name and document number for each guest" });
-      return;
-    }
-
-    if (travelers.reduce((sum, traveler) => sum + (traveler.file?.size || 0), 0) > 25 * 1024 * 1024) {
-      dispatch({ type: 'ERROR', message: 'The documents together exceed 25 MiB. Please choose smaller files.' });
-      return;
-    }
-
-    dispatch({ type: 'START' });
-
+  async function withdraw() {
+    if (busy) return;
+    setBusy(true); setError('');
     try {
-      const formData = new FormData();
-      formData.append("bookingId", bookingId);
-
-      travelers.forEach((traveler, index) => {
-        if (traveler.file) {
-          formData.append("files", traveler.file);
-          formData.append(`fileMetadata[${index}]`, JSON.stringify({
-            travelerIndex: index,
-            travelerName: traveler.name,
-            documentType: traveler.documentType,
-            documentNumber: traveler.documentNumber,
-            citizenship: traveler.citizenship
-          }));
-        }
-      });
-
-      const message = await submitDocuments(formData);
-      dispatch({ type: 'SUCCESS', message });
-    } catch (error) {
-      console.error("Upload error:", error);
-      dispatch({ type: 'ERROR', message: error instanceof Error ? error.message : "Upload failed" });
-    }
-  };
-
-  if (submitState.success) {
-    return (
-      <div ref={feedbackRef} tabIndex={-1} role="status" className="bg-white rounded-lg shadow-md p-8">
-        <h2 className="text-2xl font-semibold text-green-700 mb-4">Your documents are saved</h2>
-        <p className="mb-4">{submitState.message}</p>
-        <p>We look forward to welcoming you at Villa Claudia.</p>
-      </div>
-    );
+      const response = await fetch('/api/copy-exception/withdraw', { method: 'POST', headers: {
+        'x-booking-token': bookingId, 'x-copy-case-id': copyException.caseId,
+      } });
+      const data = await response.json();
+      if (!response.ok || data?.success !== true || data?.withdrawn !== true) throw new Error(typeof data?.error === 'string' ? data.error : 'Withdrawal was not confirmed. Contact Villa Claudia to remove the copy.');
+      setWithdrawn(true); setFile(undefined); setAgreement(false); setSaved(false);
+      setFeedback('The exception is closed and its copies have been deleted. Please show your original identity document on arrival.');
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Withdrawal was not confirmed. Contact Villa Claudia to remove the copy.');
+    } finally { setBusy(false); }
   }
 
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      {bookingData && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded text-left">
-          <h2 className="text-lg font-semibold mb-2">Booking Details</h2>
-          {bookingData.bookingReference && (
-            <p className="mb-1">
-              <span className="font-medium">Booking Reference:</span> {bookingData.bookingReference}
-            </p>
-          )}
-          <p className="mb-1">
-            <span className="font-medium">Check-in:</span> {bookingData.checkInDate}
-          </p>
-          {bookingData.checkOutDate && (
-            <p>
-              <span className="font-medium">Check-out:</span> {bookingData.checkOutDate}
-            </p>
-          )}
-        </div>
-      )}
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    if (!agreement || !file) { setError('Choose your own document and give your voluntary agreement, or choose the original-document alternative.'); return; }
+    setBusy(true); setError('');
+    try {
+      const form = new FormData();
+      form.set('bookingId', bookingId); form.set('copyAgreement', 'true'); form.set('copyCaseId', copyException.caseId);
+      form.set('files', file);
+      form.set('fileMetadata[0]', JSON.stringify({ travelerName: copyException.travelerName, documentType }));
+      setFeedback(await submitDocuments(form)); setSaved(true); setFile(undefined);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Upload failed.'); }
+    finally { setBusy(false); }
+  }
 
-      <form onSubmit={handleSubmit} className="text-left" aria-busy={submitState.isSubmitting}>
-        {submitState.error && (
-          <div ref={feedbackRef} tabIndex={-1} role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-700">
-            {submitState.error}
-          </div>
-        )}
-
-        <fieldset disabled={submitState.isSubmitting} className="mb-6 min-w-0">
-          <div className="block mb-2 font-medium">
-            Guest Information <span className="text-red-500">*</span>
-          </div>
-
-          {travelers.map((traveler, index) => (
-            <TravelerCard
-              key={traveler.id}
-              traveler={traveler}
-              disabled={submitState.isSubmitting}
-              index={index}
-              canRemove={travelers.length > 1}
-              onRemove={() => removeTraveler(index)}
-              onUpdate={(field, value) => updateTraveler(index, field, value)}
-              onFileSelected={(files) => handleFilesSelected(files, index)}
-            />
-          ))}
-
-          {travelers.length < maxTravelers && (
-            <button
-              type="button"
-              onClick={addTraveler}
-              className="mt-2 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-            >
-              + Add Another Guest
-            </button>
-          )}
-        </fieldset>
-
-        <p className="mb-6 text-sm text-gray-700">Choose one document for each guest. Use JPEG, PNG or PDF files, up to 10 MiB each and 25 MiB in total. Documents are saved only when you submit this form.</p>
-
-        <div className="text-center">
-          <button
-            type="submit"
-            disabled={submitState.isSubmitting}
-            className="px-6 py-3 bg-amber-700 text-white font-medium rounded hover:bg-amber-800 disabled:bg-gray-500"
-          >
-            {submitState.isSubmitting ? "Uploading..." : "Submit Documents"}
-          </button>
-        </div>
-        <p role="status" className="mt-3 text-center text-sm text-gray-700">{submitState.isSubmitting ? 'Saving your documents. Please keep this page open.' : ''}</p>
-      </form>
-    </div>
-  );
+  const active = !withdrawn && copyExceptionAvailable(copyException);
+  return <section className="bg-white rounded-lg shadow-md p-6 text-left" aria-busy={busy}>
+    <h2 className="text-xl font-semibold mb-3">Optional registration exception</h2>
+    <p className="mb-3">You can refuse or withdraw without disadvantage and show the original identity document on arrival instead.</p>
+    <p className="mb-4 text-sm">Read how we handle guest information in our <PrivacyLinks />.</p>
+    {(feedback || error) && <div ref={feedbackRef} tabIndex={-1} role={error ? 'alert' : 'status'} className="mb-4 p-3 border rounded">{error || feedback}</div>}
+    {!withdrawn && <><p className="mb-2"><strong>Reason:</strong> {copyException.reason}</p>
+      {copyException.expiresAt && <p className="mb-4">Copy permission expires at <time dateTime={copyException.expiresAt}>{new Date(copyException.expiresAt).toLocaleString('en-GB', { timeZone: 'Europe/Zagreb', timeZoneName: 'short' })}</time>. Copies are deleted when the exception ends or you withdraw.</p>}</>}
+    {active && !saved && <form onSubmit={submit}>
+      <fieldset disabled={busy} className="space-y-4 min-w-0">
+        <p>Only the named adult guest may upload their own identity document. Provide only the identity page needed for this registration exception. Do not include other guests' documents, payment cards or unrelated pages. Use one JPEG, PNG or PDF file, up to 10 MiB.</p>
+        <div><label htmlFor="exception-name" className="block">Adult guest</label><input id="exception-name" value={copyException.travelerName} readOnly className="w-full p-2 border rounded bg-gray-100" /></div>
+        <div><label htmlFor="exception-citizenship" className="block">Citizenship / nationality</label><select id="exception-citizenship" value={citizenship} onChange={event => { setCitizenship(event.target.value); if (!acceptsNationalId(event.target.value)) setDocumentType('passport'); }} className="w-full p-2 border rounded">
+          {[...euCountries, ...otherCountries].map(country => <option key={country.code} value={country.code}>{country.name}</option>)}
+        </select></div>
+        <div><label htmlFor="exception-type" className="block">Document type</label><select id="exception-type" value={documentType} onChange={event => setDocumentType(event.target.value)} className="w-full p-2 border rounded"><option value="passport">Passport</option>{acceptsNationalId(citizenship) && <option value="id_card">National ID card</option>}</select></div>
+        <div><label htmlFor="exception-file" className="block">Your own identity document</label><FileUpload id="exception-file" disabled={busy} onFilesSelected={files => setFile(files[0])} maxFiles={1} acceptedFileTypes={['image/jpeg', 'image/png', 'application/pdf']} maxSizeInMB={10} />{file && <p className="break-all">Selected: {file.name}</p>}</div>
+        <label className="flex gap-3 items-start"><input type="checkbox" checked={agreement} onChange={event => setAgreement(event.target.checked)} required className="mt-1" /><span>I voluntarily agree to temporary processing of my own adult identity-document copy for the reason and expiry shown above. I can refuse or withdraw without disadvantage and show the original instead.</span></label>
+        <button type="submit" disabled={!agreement || busy} className="px-5 py-3 bg-amber-700 text-white rounded disabled:bg-gray-500">{busy ? 'Saving...' : 'Submit my optional copy'}</button>
+      </fieldset>
+    </form>}
+    {!withdrawn && (active || saved || copyException.hasCopies) && <button type="button" onClick={withdraw} disabled={busy} className="mt-5 px-4 py-3 border border-amber-800 rounded underline disabled:opacity-50">{saved || copyException.hasCopies ? 'Withdraw agreement and delete my copy' : 'I will show the original on arrival instead'}</button>}
+  </section>;
 }

@@ -3,12 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Image from "next/image";
 import Link from "next/link";
+import PrivacyLinks from '@/components/privacy-links';
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://documents.villa-claudia.eu'),
   title: "Villa Claudia",
-  description: "Document Upload System for Villa Claudia",
+  description: "Guest registration guidance for Villa Claudia",
 };
 
 export default function RootLayout({
@@ -38,9 +40,7 @@ export default function RootLayout({
           <p>
             © {new Date().getFullYear()} Villa Claudia. All rights reserved.
           </p>
-          <p className="mt-1">
-            Your documents are securely processed and stored.
-          </p>
+          <nav className="mt-2" aria-label="Privacy information"><PrivacyLinks /></nav>
         </footer>
       </body>
     </html>

@@ -1,6 +1,6 @@
 # Villa Claudia operations manual
 
-This manual covers `villa-claudia.eu`, its WordPress booking system, and the Next.js guest document application at `documents.villa-claudia.eu`. WordPress owns availability, reservations, prices, and payments. Next.js receives guest documents and sends document reminders through WordPress. A successful upload is separate from a paid booking and from official guest registration.
+This manual covers `villa-claudia.eu`, its WordPress booking system, and the Next.js guest document application at `documents.villa-claudia.eu`. WordPress owns availability, reservations, prices, and payments. Next.js normally shows arrival guidance. It accepts one adult guest's temporary identity copy only for a documented exceptional registration case. Routine registration uses inspection of the original at arrival. WordPress owns the case, storage and deletion; necessary reminders explain the original-inspection route. An upload is separate from payment and official eVisitor registration.
 
 ## Accounts and credentials
 
@@ -29,7 +29,7 @@ Hostinger listed the following four active mailboxes on 15 October 2026. The lis
 
 SMTP checks used port 465 with certificate validation; IMAP checks used port 993 with certificate validation and TLS 1.3. No messages were read or sent. They prove authentication at that time. They do not prove incoming delivery, inbox receipt, forwarding, spam placement, or that each site's configured sender is correct. Check aliases and catch-all rules separately before removing or renaming an address. After a mailbox change, update WordPress administration, MotoPress customer/administrator notifications, WooCommerce notifications, Stripe account contact details, and the Next.js `EMAIL_*` / `ADMIN_EMAIL` settings where applicable. Send a clearly identified test only to an owned test inbox and verify receipt.
 
-The production WordPress mail transport authenticated successfully over verified TLS. Confirm the application's configured sender, reply address and approved document recipient in the private operations record before changing them. An advertised application sender may differ from the effective transport sender. Document forwarding is not proof of statutory registration.
+The production WordPress mail transport authenticated successfully over verified TLS. Confirm the application's configured sender and reply address in the private operations record before changing them. An advertised application sender may differ from the effective transport sender. Identity-copy forwarding and email attachments are now blocked; registration is completed by an authorized operator in eVisitor.
 
 ## Hosting and deployment
 
@@ -37,7 +37,7 @@ The Hostinger account contains a WordPress site and a Node.js site under the sam
 
 Hosting, email and domain renewal details are held in the private operations record. Confirm current renewal dates, automatic-renewal settings and billing responsibility in the provider account before relying on continued service.
 
-The Node app builds the repository's `main` branch using Node.js 22 and npm. Its build command is `npm run build`, using Next.js's Webpack backend. The latest completed deployment observed at the start of this inspection was commit `0f150cf1d920cd25115df3523cbdb331b25665d2`, dated 11 October 2026. Verify the deployment revision after every release. Updating Git does not install any WordPress plugin.
+The Node app builds the repository's `main` branch using Node.js 22 and npm. Its build command is `npm run build`, using Next.js's Webpack backend. Verify the deployment revision after every release and compare it with the dated release records below. Updating Git does not install any WordPress plugin or CLI script. Deploy all three Docs PHP files together: `villa-claudia-docs.php`, `workflow.php` and `copy-privacy.php`.
 
 Configure the server variables listed in [README.md](../README.md). Match `WORDPRESS_API_KEY` with the Villa Claudia Docs setting and `CRON_SECRET` with the protected cron configuration. Use port 465 for implicit TLS or 587 for STARTTLS. Keep TLS certificate verification enabled. Do not publish a diagnostic endpoint or log environment values to troubleshoot credentials.
 
@@ -59,34 +59,73 @@ Use TranslatePress's translation editor on the published page for the other lang
 
 The rates plugin registers `[villa_claudia_rates]`; the restaurant plugin registers `[restaurant_zigzag]`. Their code lives in `rates-display-plugin/` and `restaurant-posts-zigzag/`. Do not replace generated rate output with fixed text that can diverge from MotoPress prices. Restaurant cards use normal links and must remain usable on mobile and when reduced motion is enabled. Compare each destination with the intended restaurant before changing it.
 
-## Guest document workflow
+## Guest registration and exceptional temporary copies
 
-For a confirmed booking, open its document panel and copy the current private upload link. The path is `/uploads/vc_` followed by 64 hexadecimal characters. Older numeric links or `?booking=...` links are not supported. Links expire after checkout and change when the booking dates or guest email change. Send a replacement link from the current booking record rather than editing an old link.
+Normal registration takes place at arrival by inspection of the original identity document. The operator enters the legally required information in eVisitor. Do not request routine advance passport copies or treat an upload receipt as official registration. Both registration and deregistration have their own statutory 24-hour deadlines.
 
-The form accepts JPEG, PNG, and PDF files, with 1 to 8 files, no more than 10 MiB per file, and no more than 25 MiB combined. Guests enter the required document details. The form offers passports and national ID cards for EU, EEA, and Swiss citizenships. A driving licence is not an offered travel document. The operator must review legibility, completeness, guest identity, and the applicable registration requirements.
+A confirmed booking's private path is `/uploads/vc_` followed by 64 hexadecimal characters. Numeric/date-based links and `?booking=...` links are rejected. Links expire after checkout and change when dates or guest email change. Without an active case the page shows arrival guidance, not a file form.
 
-WordPress checks the token, booking association, and file contents before storing documents under `wp-content/uploads/booking-documents/<booking ID>/`. Direct web access must be denied. Administrative downloads and deletion require WordPress permissions and nonces. A failed batch is rolled back. New documents remain pending until an operator verifies them.
+To record an exception, open the booking's **Guest registration privacy** panel, then **Manage a documented temporary-copy exception**. Enter actual arrival in Europe/Zagreb, a specific objective reason registration cannot be completed by inspection, and the required confirmation that inspection without disadvantage remains available. Do not put identity numbers or unrelated sensitive information in the reason. Convenience or routine remote check-in alone is insufficient.
 
-If the form says the documents were saved but notification failed, do not ask the guest to upload again. Inspect the booking document panel and investigate email separately. If the browser loses the upload response, reconcile the stored files before retrying. A second submission could duplicate a successfully stored batch.
+The case is limited to the confirmed booking's named lead adult. No other adult's or child's copy can rely on the booker's consent. It cannot be opened before actual arrival, extended beyond actual arrival plus 23 hours 50 minutes, or reopened after closure for the same booking identity. The margin allows the five-minute cleanup job to act within the 24-hour registration window. Explain the purpose and expiry before collection and leave a real inspection alternative.
 
-To forward verified documents, first confirm that every attachment is readable and that the configured recipient is the correct authorized recipient for this property. Send once through the administration interface and review the result. Mail acceptance does not establish official tourist registration. Keep the authority's registration receipt or other required confirmation separately. Never send real identity documents as a sandbox test.
+Only an active matching case enables the optional form. The canonical guest name is read-only. The guest supplies one own JPEG, PNG or PDF, up to 10 MiB, and gives separate optional consent. There is no document-number input or metadata field. Use only the identity page required for that case, not a multi-guest PDF or unrelated records. The guest can decline, or withdraw and delete through the same private page.
+
+WordPress rechecks token, booking identity, case ID, consent and MIME content. It derives booking association and name itself. Files use normalized random names in a restricted OS temporary directory outside website content directories. This is not RAM-only storage or a promise about every internal infrastructure backup. Authorized administrative access remains protected. New files still need operator review for ownership and relevance.
+
+After completing eVisitor registration, use **Registration completed: delete temporary copies**. On refusal, withdrawal or an unsuitable document, close the exception and delete copies. Do not download a new permanent archive or use the old forwarding recipient. Copy attachments and forwarding are blocked. Notifications contain no attachment or document-number field. Access ends at case expiry; automatic cleanup removes expired or invalid copies. A limited exception/consent/closure record remains, without image content, document-number fields or a duplicate traveler-name field, only under the published necessity and claims criteria.
+
+If storage succeeded but notification failed, reconcile the case before asking for another file. A lost browser response can also follow successful storage. Mail acceptance is not proof of inbox delivery or authority registration.
+
+## Privacy notice and website defaults
+
+The reviewed English/German source is `content/privacy-policy.json`. Keep both translations, date and publication status together. The normal WordPress plugin `villa-claudia-privacy/` provides the site defaults and footer/contact/checkout notices. It disables optional analytics, Reach and Sourcebuster tracking, serves existing fonts locally and replaces automatic Maps loading with an external directions link. Deploy its complete directory, including all font assets, `fonts.css`, `privacy.css`, `checkout-complete.js`, manifest and all three OFL licenses. The verified package contains 45 files, including 36 fonts. Activate it as a normal plugin, not an MU wrapper. Clear the target environment's Divi generated CSS/font cache and page caches, then verify EN and DE pages.
+
+The canonical source publishes to WordPress `/privacy-policy/` and `/datenschutz/`, and Next.js `/privacy` and `/privacy/de`. `scripts/publish-privacy.php` uses native WordPress functions, backs up affected pages/meta/options outside `public_html`, writes static language fragments, sets the WordPress privacy page and updates WooCommerce's privacy wording. It verifies saved hashes and disables Divi on the policy pages. A backup must be written and verified before mutation. Check that the caller has set the reviewed source to `status: published`; even dry-run rejects a draft source.
+
+Set `VILLA_WP_ROOT` and `VILLA_RELEASE` to verified absolute paths for the intended environment. Example publication sequence:
+
+```sh
+wp --path="$VILLA_WP_ROOT" eval-file "$VILLA_RELEASE/scripts/publish-privacy.php" "$VILLA_RELEASE/content/privacy-policy.json" dry-run
+wp --path="$VILLA_WP_ROOT" eval-file "$VILLA_RELEASE/scripts/publish-privacy.php" "$VILLA_RELEASE/content/privacy-policy.json" publish "$HOME/private/villa-privacy-backups"
+```
+
+Deploy the same canonical source with Next.js and run anonymous parity verification:
+
+```sh
+python tests/verify-privacy-publication.py --next-base https://documents.villa-claudia.eu --wordpress-en https://villa-claudia.eu/privacy-policy/ --wordpress-de https://villa-claudia.eu/datenschutz/
+```
+
+The check requires exactly one language wrapper and compares normalized published text with the canonical HTML. Check the visible footer, native MotoPress contact notice, Woo checkout and private guest-page links in both languages too. Do not use independent hand-edited policy copies that diverge after the next release.
+
+WordPress retains necessary booking-session and Woo cart/checkout browser storage; Stripe loads for checkout payment and fraud protection. The public notice lists names, purposes and supported durations. A valid paid order-received page clears only `storeApiCartData`, `storeApiCartHash` and `storeApiNonce`, including late updates/page exit. Active, unpaid and failed checkout state stays usable. Abandoned localStorage has no invented automatic TTL; explain browser clearing. Existing cookies from earlier site versions can also be removed in browser settings. Anonymous guest-portal pages do not use their own visitor cookies or persist guest information in local/session storage.
 
 ## Reminders and recovery
 
 Hostinger's cron panel confirmed the daily `0 12 * * *` job running `/usr/bin/php /home/<HOSTING_USER>/domains/villa-claudia.eu/public_html/cron-document-reminders.php`. The scheduler's timezone remains unverified. The panel's saved output showed processed 0, sent 0 and failed 0, without a visible run timestamp. This is evidence of a saved successful empty run, not a dated current delivery receipt. SSH did not provide the `crontab` command; that did not establish an empty schedule. The script calls the Next.js reminder endpoint with a Bearer secret. It reads the secret from its environment or a protected `.env.cron` next to the script; logs belong outside `public_html`. HTTP access to the script must remain blocked.
 
-Confirmed bookings without stored documents become eligible seven days before arrival through arrival day, using Europe/Zagreb calendar dates. Imported bookings without an email address are skipped. WordPress claims each reminder atomically so overlapping runs do not normally send twice. Claims depend on dates and email, so a corrected booking may need a replacement link.
+The reminder message asks for original-ID inspection at arrival and links to the guidance plus any active voluntary exception. It does not require routine advance copies or threaten cancellation for a missing scan. Confirmed bookings become eligible in the configured seven-days-before-arrival through arrival-day window, using Europe/Zagreb calendar dates. Imported bookings without an email address are skipped. WordPress claims each reminder atomically so overlapping runs do not normally send twice. Claims depend on dates and email, so a corrected booking may need a replacement link.
 
 A definite SMTP rejection releases the claim. An ambiguous connection loss or a failure to record acceptance retains it and produces a failed result. Compare the mail provider's evidence with the booking and claim before retrying. Do not clear all claims. After proving no delivery, delete only the exact `vc_reminder_<booking ID>_<fingerprint prefix>` option. If mail was accepted, complete the original claim through the authenticated completion endpoint. Never treat a successful cron HTTP response as proof of inbox receipt.
+
+## Five-minute cleanup and restore protection
+
+Deploy `cron-privacy-retention.php` beside `wp-load.php` and run it through PHP CLI every five minutes. HTTP access returns 403. Its output contains a UTC timestamp and counts, not identity data; nonzero exit status or `success: false` requires investigation. WordPress also registers the `villa_claudia_copy_cleanup` five-minute event, and access gates reject invalid/expired cases. Do not rely on visitor traffic for the hard deletion deadline.
+
+Set the private WordPress constant `VILLA_CLAUDIA_ERASURE_RECEIPT` to the verified absolute path of the approved legacy-erasure JSON receipt outside `public_html`, conventionally `$HOME/private/villa-erasure-receipt.json`. Protect its directory with `0700` and file with `0600`, and preserve it separately from site backups. Do not put its private contents or real paths in the public repository.
+
+The receipt lists hashes of specifically approved relative legacy paths and their sizes. Cleanup reapplies that list if those files return after a restore. It does not discover new files to erase by guessing. A matching path with a changed size, unreadable/malformed configured receipt, symlink or failed removal needs administrator review. Investigate a failed cleanup result; do not label it successful or silently replace the receipt with an empty list.
+
+Before a restored site is reopened, restore its protected receipt/configuration and closed-case history, run CLI cleanup, verify that no expired copies or approved erased legacy files returned, then check the site and case gates. Do not overwrite new bookings blindly or restore a deleted copy into service. Apply the published deletion/restriction instructions again after database or mail restores. Provider backup-cycle details are not a claim that every infrastructure copy was inspected.
 
 ## Safe updates and rollback
 
 1. Record current versions, deployed commit, payment mode, webhook endpoints, cron jobs, and the issue being addressed. Check for unrelated local edits before changing source.
 2. Create and confirm a recoverable backup of WordPress files and database. Protect the Node environment and private cron configuration outside the web root. Record the backup date and restore method.
-3. Prepare an isolated test copy. Disable mail delivery to guests, reminder jobs, calendar imports/exports, authority forwarding, and live payment credentials before using it.
-4. Apply compatible updates to the test copy. Update custom plugin files together. Run the automated checks and the functional matrix below, including the public pages and checkout.
+3. Prepare an isolated test copy. Disable mail delivery to guests, reminder jobs, calendar imports/exports, identity-copy forwarding, and live payment credentials before using it.
+4. Apply compatible updates to the test copy. Update all three Docs files together, the complete privacy-plugin asset directory and the two CLI jobs separately. Run the automated checks and the functional matrix below, including the public pages and checkout.
 5. Release the tested revision and WordPress updates, purge relevant caches, and repeat the production smoke checks. Verify the active revision and versions directly.
-6. If the release breaks booking, payment, uploads, or administration, preserve error evidence and restore the matching files and database backup. Do not restore an old database over new guest bookings without reconciling those bookings first.
+6. If the release breaks booking, payment, uploads, or administration, preserve error evidence and restore the matching files and database backup. Do not restore an old database over new guest bookings without reconciling those bookings first. Reapply privacy erasure and closed-case controls before reopening.
 
 TranslatePress database optimization is a separate database operation. Back up first, complete the operation in a suitable maintenance window, and check both languages afterward. Renovate, configured in `renovate.json`, proposes repository dependency updates. The validation workflow runs JavaScript checks and isolated PHP tests. Review the test results before accepting an update.
 
@@ -100,29 +139,29 @@ Record date, environment, revision, expected result, actual result, and test rec
 | Availability | Valid dates, occupied dates, minimum stay, occupancy limits, calendar imports, no duplicate reservation |
 | Booking and payment | Sandbox card success, decline, 3-D Secure, cancelled checkout, duplicate submission, order/reservation status, webhook delivery and retry |
 | Payment reversal | Sandbox refund/cancellation and the resulting order, booking, availability, and email states |
-| Guest documents | Valid link, expired/revoked/numeric link rejection, all offered document types, file count/size/type limits, missing required fields, upload success and partial mail failure |
-| Administration | Pending review, authenticated download, verification, single-document deletion, synthetic forwarding, failures and cleanup |
+| Exception portal | Ordinary arrival guidance; active case only; own lead adult; one file; optional consent and inspection alternative; withdrawal; expired/revoked/numeric links; MIME/size and notification failures |
+| Administration and cleanup | Actual-arrival/objective-case gating, no extension/reopening, authenticated review, registration-complete deletion, withdrawal replay, expiry cleanup, no forwarding/attachment/number field, restore erasure |
 | Reminders | Eligibility dates, missing email skip, repeat/overlap protection, definite failure retry, ambiguous delivery reconciliation |
 | Email | Correct configured sender/recipient, test receipt in owned inbox, reply path, incoming delivery and spam placement |
-| Operations | Backups/restoration method, private file denial, cron authentication, error visibility, deployment revision |
+| Privacy and operations | Canonical EN/DE parity on both sites, contact/checkout/footer links, no optional tracking, local fonts, paid-receipt cache cleanup, abandoned-state preservation, cron and restore checks |
 
 Stripe test keys and sandbox data are separate from live payments. The sandbox checkout must use test mode on the isolated copy, a matching test webhook signing secret, and Stripe's documented test payment details. Check the Stripe event, WooCommerce order, MotoPress reservation, and inbox receipt for the same booking. Stripe's [testing guide](https://docs.stripe.com/testing) describes supported test methods. A webhook status alone is insufficient evidence of a completed booking.
 
 ## Verification record for 15 October 2026
 
-The expanded suite passed all 38 Node.js workflow tests and 108 PHP assertions, including 26 staging-isolation assertions, using PHP 8.3.35, matching production. Lint and production builds passed with Node.js 22 and 24. Measured coverage for the loaded server/library modules was 100% of lines and functions and 97.57% of branches. This is a scoped coverage result, not a claim of complete browser, WordPress, or payment coverage. `npm audit --omit=dev` reported zero known vulnerabilities for the production dependency tree at the initial check.
+The initial audit suite passed all 38 Node.js workflow tests and 108 PHP assertions, including 26 staging-isolation assertions, using PHP 8.3.35, matching production. Lint and production builds passed with Node.js 22 and 24. At that earlier revision, measured coverage for the loaded server/library modules was 100% of lines and functions and 97.57% of branches. This historical scoped measurement does not describe every later privacy module, browser, WordPress or payment path. `npm audit --omit=dev` reported zero known vulnerabilities for the production dependency tree at the initial check.
 
 The [document integration verification](integration-verification-2026-10-15.md) records 40 passed checks against the isolated staging WordPress copy and a local production Next.js build: 16 HTTP/upload checks, 12 storage/reminder checks and 12 hydrated browser checks. Additional SMTP rejection, forwarding and single-document deletion checks passed. Messages used private capture rather than real inbox delivery, and files were synthetic. The integration report records the concurrent pending-claim 502 response and the later successful replay explicitly. These checks do not prove Stripe card checkout.
 
 Live observations included WordPress 7.1.3, PHP 8.3.35, Divi 4.27.9, 23 installed plugins with 21 active and 2 inactive, TranslatePress 3.3.8, MotoPress Hotel Booking 6.4.0, WooCommerce 11.2.1, and Stripe Gateway 11.1.0. No WordPress updates remained pending at the version check, and core checksums passed. Docs 1.7.6, rates display 1.9.5 and restaurant plugin 1.4.6 were subsequently deployed with private rollback backups and matching source hashes. Authorized administrative access was confirmed. The owner confirmed `booking@villa-claudia.eu` as the current Stripe account email.
 
-Read-only public checks returned HTTP 200 for all 101 tested first-party URLs and all 122 collected first-party assets. Availability searches returned the expected seven-night results for October 2026 and June 2027 and no result for the tested one-night or insufficient-notice stays. See the [public audit](public-audit-2026-10-15.md) for exact scope and content issues. Follow-up updates corrected arrival directions in both languages to the owner's confirmed `Valentići 32` address, removed the unverified fixed border hours, and translated the German booking policy, booking terms, and all 22 displayed restaurant descriptions. The English business terms were preserved. Rates display 1.9.5 now shows 2026 and 2027 from MotoPress's actual recurring periods. Remaining content checks include a restaurant location contradiction, rates-label translations, heading structure, and document privacy information. These response checks do not establish visual or checkout behavior.
+Read-only public checks returned HTTP 200 for all 101 tested first-party URLs and all 122 collected first-party assets. Availability searches returned the expected seven-night results for October 2026 and June 2027 and no result for the tested one-night or insufficient-notice stays. See the [public audit](public-audit-2026-10-15.md) for exact scope and content issues. Follow-up updates corrected arrival directions in both languages to the owner's confirmed `Valentići 32` address, removed the unverified fixed border hours, and translated the German booking policy, booking terms, and all 22 displayed restaurant descriptions. The commercial terms were preserved; the document-handling paragraph was subsequently aligned with the chosen privacy workflow. Rates display 1.9.5 now shows 2026 and 2027 from MotoPress's actual recurring periods. Follow-up fixes resolved the restaurant location, German rate labels, heading structure and the separate mobile header. The later privacy release replaces the original document collection policy. These response checks do not establish visual or checkout behavior.
 
 Three German translations incorrectly stored in the English WooCommerce dictionary were restored to English for First name, Last name and Phone, both on production and staging, after private backups. The German dictionary was unchanged. A separate checkout test found that the legacy Divi checkout submitted different hidden billing values from the visible fields. The native WooCommerce checkout fix was structurally verified on staging and deployed to production after a private backup.
 
-The WordPress privacy setting produces an empty checkout privacy URL. No published substitute was found. An English and German privacy draft is held locally for owner review and has not been published or enabled. Controller identity, legal duties, retention, recipients, provider agreements and actual cookies require confirmation before release.
+The initial inspection found an empty checkout privacy URL and no published substitute. The subsequent bilingual canonical notice replaces that missing page and matches the implemented arrival/exception workflow. The current company details were supplied by the owner; no independent registry or comprehensive legal audit is claimed.
 
-The privacy review also found [AZOP's official FAQ, question 33](https://azop.hr/najcesce-postavljena-pitanja/), which says apartment landlords obtain eVisitor information by inspecting identity documents and may not copy them. The existing scan-upload workflow therefore needs review against the operator's actual legal status and duties. Do not claim that collecting identity-document copies is required for statutory registration or that a comparable property's privacy policy establishes a legal basis. The draft distinguishes registration data from document copies and leaves this issue explicit for operator review.
+The privacy review also found [AZOP's official FAQ, question 33](https://azop.hr/najcesce-postavljena-pitanja/), which says apartment landlords obtain eVisitor information by inspecting identity documents and may not copy them. The owner subsequently identified evisitor.hr as the portal. Official HTZ guidance and its mobile manual distinguish necessary registration data/MRZ extraction from a retained image, and describe a narrowly justified temporary-copy exception with free refusal and destruction. The owner chose original inspection by default and a recorded, voluntary exception only. Company form alone does not justify routine copies. See the current workflow above and the [HTZ guidance](https://www.htz.hr/sites/default/files/2018-05/eVisitor-Smjernice%20GDPR.pdf).
 
 The public `/error_log` path initially returned HTTP 200 and was blocked during the inspection. The follow-up request returned HTTP 403 while the homepage remained HTTP 200. Sensitive environment/configuration files were restricted to mode `0600`. WordPress core and 15 plugins passed published checksum verification; eight plugins had no published checksums available. No checksum mismatch was reported.
 
@@ -161,3 +200,12 @@ Fresh production checks returned 200 for `/` and `/uploads`, a controlled expire
 ## Changes from the old Word document
 
 The updated manual keeps credentials in private access records, records the current public contact details, retains the four verified mailboxes, replaces numeric upload links with token links, corrects accepted document types, distinguishes rates from seasons, and identifies Renovate as the repository dependency updater. It separates mail acceptance from inbox delivery and from official registration. Version numbers and account expiry dates are dated observations so they can be checked again instead of silently becoming permanent instructions.
+
+
+## Privacy release verification
+
+The privacy release implements Docs 1.8.0 and the normal privacy plugin 1.0.0, canonical bilingual publication, ordinary in-person registration and one-adult temporary exceptions. Operator controls record objective reason and actual arrival, enforce the expiry and close cases after registration. The portal offers a real refusal route and same-page withdrawal/delete. Copies are held outside website content directories, removed through the five-minute CLI job, and never emailed or forwarded. A protected erasure receipt prevents specifically approved legacy files from silently returning after a website restore.
+
+The release candidate passed 58 Node checks, 19 staging HTTP/backend privacy checks, 38 Linux privacy checks plus preservation of an externally created symlink, and 22 hydrated mobile checks. An isolated EUR 3,010 Stripe test payment completed on the new checkout. The three sensitive cart-cache keys were absent on its paid receipt. A full test refund succeeded, the reservation was cancelled and synthetic records were cleaned up. These were test funds with captured mail, not a live charge or government registration.
+
+Final production deployment/cleanup and the final combined PHP/guard totals are pending the release owner's verification. They must be added here before this section is treated as a completed production record. Earlier payment/document test counts above remain historical and must not be presented as coverage of every new privacy path.
