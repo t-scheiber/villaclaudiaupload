@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Rates Display
  * Description: Displays seasonal rates for Villa Claudia from MotoPress Hotel Booking
- * Version: 1.9.4
+ * Version: 1.9.5
  * Author: Thomas Scheiber
  */
 
@@ -34,15 +34,16 @@ if (!function_exists('vcr_rates_shortcode')) {
         );
 
         $year = absint($atts['year']);
-        if ($year < 1) {
-            $year = (int) current_time('Y');
-        }
+        $current_year = (int) current_time('Y');
+        // Keep an explicit year as a filter. The default also shows next year's
+        // published rates so guests can compare prices for advance bookings.
+        $years = $year > 0 ? array($year) : array($current_year, $current_year + 1);
 
         try {
-            return vcr_rates_render(
+            return vcr_rates_render_years(
                 $atts['title'],
                 absint($atts['accommodation_id']),
-                $year,
+                $years,
                 ($atts['show_note'] === 'on')
             );
         } catch (Throwable $e) {
@@ -254,6 +255,10 @@ if (!function_exists('vcr_rates_shortcode')) {
     }
 
     function vcr_rates_render($title, $accommodation_id, $year, $show_note) {
+        return vcr_rates_render_years($title, $accommodation_id, array($year), $show_note);
+    }
+
+    function vcr_rates_render_years($title, $accommodation_id, $years, $show_note) {
         $mphb = vcr_get_mphb();
         if (!$mphb) {
             return vcr_rates_error();
@@ -274,41 +279,43 @@ if (!function_exists('vcr_rates_shortcode')) {
         $html = '<div class="villa-claudia-rates">';
         $found = false;
 
-        foreach ($rates as $rate) {
-            if (!is_object($rate) || !method_exists($rate, 'getSeasonPrices')) {
-                continue;
+        foreach ($years as $year) {
+            foreach ($rates as $rate) {
+                if (!is_object($rate) || !method_exists($rate, 'getSeasonPrices')) {
+                    continue;
+                }
+
+                $season_prices = vcr_to_list($rate->getSeasonPrices());
+                if (empty($season_prices)) {
+                    continue;
+                }
+
+                $rows = vcr_rates_build_rows($mphb, $season_prices, $year);
+
+                if (empty($rows)) {
+                    continue;
+                }
+
+                $found = true;
+                $rate_title = method_exists($rate, 'getTitle') ? $rate->getTitle() : 'Rates';
+                $html .= '<h3>' . esc_html($title) . ' - ' . esc_html($rate_title) . ($year > 0 ? ' - ' . esc_html($year) : '') . '</h3>';
+                $html .= '<table class="villa-claudia-rates-table" style="width:100%;border-collapse:collapse;margin:20px 0">';
+                $html .= '<thead><tr>';
+                $html .= '<th style="border:1px solid #ddd;padding:10px;background:#f5f5f5;text-align:left">Season</th>';
+                $html .= '<th style="border:1px solid #ddd;padding:10px;background:#f5f5f5;text-align:left">Dates</th>';
+                $html .= '<th style="border:1px solid #ddd;padding:10px;background:#f5f5f5;text-align:left">Price per Night</th>';
+                $html .= '</tr></thead><tbody>';
+
+                foreach ($rows as $row) {
+                    $html .= '<tr>';
+                    $html .= '<td style="border:1px solid #ddd;padding:10px">' . esc_html($row['name']) . '</td>';
+                    $html .= '<td style="border:1px solid #ddd;padding:10px">' . $row['dates'] . '</td>';
+                    $html .= '<td style="border:1px solid #ddd;padding:10px">' . $row['price'] . '</td>';
+                    $html .= '</tr>';
+                }
+
+                $html .= '</tbody></table>';
             }
-
-            $season_prices = vcr_to_list($rate->getSeasonPrices());
-            if (empty($season_prices)) {
-                continue;
-            }
-
-            $rows = vcr_rates_build_rows($mphb, $season_prices, $year);
-
-            if (empty($rows)) {
-                continue;
-            }
-
-            $found = true;
-            $rate_title = method_exists($rate, 'getTitle') ? $rate->getTitle() : 'Rates';
-            $html .= '<h3>' . esc_html($title) . ' - ' . esc_html($rate_title) . '</h3>';
-            $html .= '<table class="villa-claudia-rates-table" style="width:100%;border-collapse:collapse;margin:20px 0">';
-            $html .= '<thead><tr>';
-            $html .= '<th style="border:1px solid #ddd;padding:10px;background:#f5f5f5;text-align:left">Season</th>';
-            $html .= '<th style="border:1px solid #ddd;padding:10px;background:#f5f5f5;text-align:left">Dates</th>';
-            $html .= '<th style="border:1px solid #ddd;padding:10px;background:#f5f5f5;text-align:left">Price per Night</th>';
-            $html .= '</tr></thead><tbody>';
-
-            foreach ($rows as $row) {
-                $html .= '<tr>';
-                $html .= '<td style="border:1px solid #ddd;padding:10px">' . esc_html($row['name']) . '</td>';
-                $html .= '<td style="border:1px solid #ddd;padding:10px">' . $row['dates'] . '</td>';
-                $html .= '<td style="border:1px solid #ddd;padding:10px">' . $row['price'] . '</td>';
-                $html .= '</tr>';
-            }
-
-            $html .= '</tbody></table>';
         }
 
         if (!$found) {
@@ -323,6 +330,41 @@ if (!function_exists('vcr_rates_shortcode')) {
         return $html;
     }
 
+    function vcr_rates_ranges_for_year($season, $year) {
+        // MotoPress recurring seasons retain their original start/end dates.
+        // Its generated periods apply recurrence limits and the booking horizon.
+        if (method_exists($season, 'getPeriods')) {
+            $ranges = array();
+            foreach (vcr_to_list($season->getPeriods()) as $period) {
+                if (!is_array($period) || !(($period['start_date'] ?? null) instanceof DateTimeInterface) ||
+                    !(($period['end_date'] ?? null) instanceof DateTimeInterface)) {
+                    continue;
+                }
+                $start = DateTimeImmutable::createFromInterface($period['start_date']);
+                $end = DateTimeImmutable::createFromInterface($period['end_date']);
+                if ($year > 0) {
+                    $year_start = $start->setDate($year, 1, 1)->setTime(0, 0);
+                    $year_end = $start->setDate($year, 12, 31)->setTime(23, 59, 59);
+                    if ($end < $year_start || $start > $year_end) {
+                        continue;
+                    }
+                    $start = max($start, $year_start);
+                    $end = min($end, $year_end);
+                }
+                $ranges[] = array(
+                    'dates' => esc_html(vcr_format_single_date($start) . ' - ' . vcr_format_single_date($end)),
+                    'sort' => $start->getTimestamp(),
+                );
+            }
+            return $ranges;
+        }
+
+        if ($year > 0 && !vcr_rates_season_matches_year($season, $year)) {
+            return array();
+        }
+        return array(array('dates' => vcr_format_season_dates($season), 'sort' => vcr_rates_season_sort_key($season)));
+    }
+
     function vcr_rates_build_rows($mphb, $season_prices, $year) {
         $rows = array();
 
@@ -332,19 +374,17 @@ if (!function_exists('vcr_rates_shortcode')) {
                 continue;
             }
 
-            if ($year > 0 && !vcr_rates_season_matches_year($season, $year)) {
-                continue;
-            }
-
             $price = method_exists($season_price, 'getPrice') ? $season_price->getPrice() : 0;
             $price_html = function_exists('mphb_format_price') ? mphb_format_price($price) : esc_html($price);
 
-            $rows[] = array(
-                'name' => vcr_get_season_name($season),
-                'dates' => vcr_format_season_dates($season),
-                'price' => $price_html,
-                'sort' => vcr_rates_season_sort_key($season),
-            );
+            foreach (vcr_rates_ranges_for_year($season, $year) as $range) {
+                $rows[] = array(
+                    'name' => vcr_get_season_name($season),
+                    'dates' => $range['dates'],
+                    'price' => $price_html,
+                    'sort' => $range['sort'],
+                );
+            }
         }
 
         usort($rows, function ($a, $b) {

@@ -1,21 +1,28 @@
-INSTALL / RECOVERY
-==================
+INSTALLATION AND RECOVERY
 
-If the site shows a critical error:
+Back up the existing plugin and Rates page before replacing the plugin. Keep
+backups outside the public web directory.
 
-1. In Hostinger File Manager go to: wp-content/plugins/
-2. DELETE the entire folder: villa-claudia-rates-display
-3. Also DELETE if present: rates-display-plugin
-4. Reload the site - it should work again
+Install villa-claudia-rates-display.zip through WordPress Plugins > Add New >
+Upload Plugin. If WordPress finds the existing plugin, review the versions
+before replacing it. Only one Villa Claudia rates display plugin should be
+active.
 
-Then install this zip fresh:
-- Plugins -> Add New -> Upload Plugin
-- Upload villa-claudia-rates-display.zip
-- Activate
+Use this shortcode on the Rates page:
+  [villa_claudia_rates]
 
-On the Rates page use: [villa_claudia_rates]
+The default shows the current year and the next year when MotoPress supplies
+matching season periods. Each table is labelled with its year. Recurring
+seasons use MotoPress's generated periods, including recurrence end dates
+and its booking horizon. The display does not create or change rates.
 
-IMPORTANT: Only one plugin file should exist in the folder:
-  villa-claudia-rates-display.php
+To show one specific year:
+  [villa_claudia_rates year="2027"]
 
-Delete any old file named mphb-divi-rates-display.php if you see it.
+An explicit year with no matching periods does not display another year's
+prices. The optional show_note="off" setting hides the explanatory note.
+
+If an update breaks the page, deactivate this plugin and restore the saved
+version. If WordPress administration is unavailable, rename this plugin's
+directory through Hostinger File Manager to deactivate it, then restore the
+backup. Do not delete unrelated plugin directories.

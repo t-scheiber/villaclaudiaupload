@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
       upstream.set(`file_info_file_${index}`, JSON.stringify(info));
     }
     const result = await wordpress<StoredResult>('/upload-documents', { method: 'POST', body: upstream });
-    if (result.success !== true || result.storedCount !== documents.length || result.bookingId !== booking.bookingId) {
+    if (!result || typeof result !== 'object' || Array.isArray(result) || result.success !== true ||
+        result.storedCount !== documents.length || result.bookingId !== booking.bookingId) {
       throw new WorkflowError(502, 'Document storage was not confirmed. Please contact us before retrying.');
     }
     let notificationSent = false;
