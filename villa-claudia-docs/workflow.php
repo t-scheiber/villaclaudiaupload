@@ -1,7 +1,9 @@
 <?php
 if (!defined('ABSPATH')) { exit; }
+require_once __DIR__ . '/copy-privacy.php';
 
 trait Villa_Claudia_Workflow {
+    use Villa_Claudia_Copy_Privacy;
     private function booking_fingerprint($id) {
         return hash('sha256', implode('|', array(
             get_post_meta($id, 'mphb_check_in_date', true),
@@ -81,7 +83,8 @@ trait Villa_Claudia_Workflow {
 
     private function document_path($id, $filename) {
         if (!is_string($filename) || $filename !== basename($filename)) { return false; }
-        $base = wp_upload_dir()['basedir'] . '/booking-documents/' . absint($id);
+        if (!$this->active_copy_case($id)) { return false; }
+        $base = $this->copy_storage_root() . '/' . absint($id);
         $path = realpath($base . '/' . $filename);
         $directory = realpath($base);
         return $path && $directory && strpos($path, $directory . DIRECTORY_SEPARATOR) === 0 && is_file($path) ? $path : false;
@@ -95,58 +98,7 @@ trait Villa_Claudia_Workflow {
     }
 
     private function send_verified_documents($id, $recipient, $subject, $message) {
-        if (!is_email($recipient)) {
-            return new WP_Error('invalid_recipient', 'Configure an approved recipient before sending documents.', array('status' => 400));
-        }
-        $verified = array();
-        foreach (get_post_meta($id, 'villa_claudia_document') as $document) {
-            if (!is_array($document) || ($document['status'] ?? '') !== 'verified') { continue; }
-            $path = $this->document_path($id, $document['filename'] ?? '');
-            if (!$path || !is_readable($path) || filesize($path) < 1) {
-                return new WP_Error('missing_document', 'A verified document is missing or unreadable. No email was sent. Review this booking before retrying.', array('status' => 409));
-            }
-            $verified[] = array('document' => $document, 'path' => $path);
-        }
-        if (!$verified) {
-            return new WP_Error('no_documents', 'No verified documents found for this booking.', array('status' => 400));
-        }
-        $root = wp_upload_dir()['basedir'] . '/booking-documents';
-        $temp_dir = $root . '/send-' . bin2hex(random_bytes(16));
-        $temp_files = array();
-        try {
-            $protection = "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder deny,allow\nDeny from all\n</IfModule>\n";
-            if (!wp_mkdir_p($root) || file_put_contents($root . '/.htaccess', $protection) === false ||
-                !mkdir($temp_dir, 0700) || !chmod($temp_dir, 0700)) {
-                throw new RuntimeException('Protected temporary storage is unavailable.');
-            }
-            foreach ($verified as $index => $item) {
-                $document = $item['document'];
-                $label = preg_replace('/[^a-zA-Z0-9_-]/', '-', $document['traveler_name'] . '-' . $document['document_type']);
-                $extension = strtolower(pathinfo($item['path'], PATHINFO_EXTENSION));
-                if (!in_array($extension, array('jpg', 'jpeg', 'png', 'pdf'), true)) { $extension = 'bin'; }
-                $name = substr($label, 0, 120) . '-' . ($index + 1) . '.' . $extension;
-                $path = $temp_dir . '/' . $name;
-                $temp_files[] = $path;
-                if (!copy($item['path'], $path) || !chmod($path, 0600)) {
-                    throw new RuntimeException('A document could not be prepared.');
-                }
-            }
-            $sent = wp_mail($recipient, $subject, $message, array(
-                'Content-Type: text/plain; charset=UTF-8',
-                'From: Villa Claudia <administration@villa-claudia.eu>',
-            ), $temp_files);
-            if (!$sent) {
-                return new WP_Error('mail_failed', 'Email delivery was not confirmed. Check the mail logs before retrying.', array('status' => 502));
-            }
-            $sent_at = current_time('mysql');
-            update_post_meta($id, 'villa_claudia_documents_sent', $sent_at);
-            return array('recorded' => get_post_meta($id, 'villa_claudia_documents_sent', true) === $sent_at);
-        } catch (Throwable $error) {
-            return new WP_Error('forwarding_failed', 'Document forwarding could not be completed. Check the document and mail logs before retrying.', array('status' => 500));
-        } finally {
-            foreach ($temp_files as $path) { if (is_file($path)) { unlink($path); } }
-            if (is_dir($temp_dir)) { rmdir($temp_dir); }
-        }
+        return new WP_Error('copy_forwarding_disabled', 'Identity copies are not sent by email. Complete registration in eVisitor and delete the temporary copy.', array('status' => 403));
     }
 
     private function remove_stored_document($id, $filename) {
@@ -169,9 +121,22 @@ trait Villa_Claudia_Workflow {
     public function handle_document_upload($request) {
         $id = $this->resolve_upload_booking($request->get_param('uploadToken'));
         if (is_wp_error($id)) { return $id; }
+        $lock = $this->copy_lock($id);
+        if (!$lock) { return new WP_Error('copy_busy', 'Please retry in a moment.', array('status' => 503)); }
+        try {
+        $case = $this->active_copy_case($id);
+        if (!$case || $request->get_param('copyCaseId') !== $case['case_id']) {
+            return new WP_Error('copy_not_authorized', 'Copies are only accepted for an active documented exception. Show your original ID at arrival instead.', array('status' => 403));
+        }
+        if (!in_array($request->get_param('copyAgreement'), array(true, 'true'), true)) {
+            return new WP_Error('copy_agreement_required', 'Specific optional agreement is required. Original-document inspection remains available.', array('status' => 400));
+        }
+        if ($this->has_stored_documents($id)) {
+            return new WP_Error('copy_already_stored', 'Your temporary copy is already saved. Do not upload it again.', array('status' => 409));
+        }
         $files = $request->get_file_params();
-        if (count($files) < 1 || count($files) > 8) {
-            return new WP_Error('invalid_files', 'Upload between one and eight documents.', array('status' => 400));
+        if (count($files) !== 1) {
+            return new WP_Error('invalid_files', 'Upload one file containing only your own adult identity document.', array('status' => 400));
         }
         $allowed = array('image/jpeg' => 'jpg', 'image/png' => 'png', 'application/pdf' => 'pdf');
         $validated = array(); $total = 0;
@@ -185,44 +150,46 @@ trait Villa_Claudia_Workflow {
             $mime = $finfo->file($file['tmp_name']);
             $info = json_decode((string) $request->get_param('file_info_' . $key), true);
             $traveler_name = is_array($info) && is_string($info['travelerName'] ?? null) ? sanitize_text_field($info['travelerName']) : '';
-            $document_number = is_array($info) && is_string($info['documentNumber'] ?? null) ? sanitize_text_field($info['documentNumber']) : '';
             if ($size < 1 || $size > 10 * 1024 * 1024 || $total > 25 * 1024 * 1024 || !isset($allowed[$mime]) ||
                 !is_array($info) || !is_string($info['travelerName'] ?? null) || trim($info['travelerName']) === '' ||
-                trim($traveler_name) === '' || trim($document_number) === '' ||
+                trim($traveler_name) === '' || $traveler_name !== $case['traveler_name'] ||
                 !preg_match('/\A.{1,200}\z/us', $info['travelerName']) ||
-                !is_string($info['documentType'] ?? null) || !in_array($info['documentType'], array('passport', 'id_card', 'residence_permit', 'drivers_license'), true) ||
-                !is_string($info['documentNumber'] ?? null) || trim($info['documentNumber']) === '' ||
-                !preg_match('/\A.{1,100}\z/us', $info['documentNumber'])) {
+                !is_string($info['documentType'] ?? null) || !in_array($info['documentType'], array('passport', 'id_card'), true)) {
                 return new WP_Error('invalid_file', 'Invalid document or metadata. Use JPEG, PNG or PDF within the size limits.', array('status' => 400));
             }
             $validated[] = array('tmp' => $file['tmp_name'], 'size' => $size, 'type' => $mime,
                 'filename' => bin2hex(random_bytes(24)) . '.' . $allowed[$mime],
-                'original_name' => sanitize_file_name($file['name']),
+                'original_name' => 'identity-document.' . $allowed[$mime],
                 'traveler_name' => $traveler_name,
-                'document_type' => $info['documentType'], 'document_number' => $document_number);
+                'document_type' => $info['documentType'], 'document_number' => '');
         }
-        $root = wp_upload_dir()['basedir'] . '/booking-documents';
+        $root = $this->copy_storage_root();
         $directory = $root . '/' . $id;
-        $protection = "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nOrder deny,allow\nDeny from all\n</IfModule>\n";
-        if (!wp_mkdir_p($directory) || file_put_contents($root . '/.htaccess', $protection) === false ||
-            file_put_contents($directory . '/.htaccess', $protection) === false) {
+        if (is_link($root) || is_link($directory) || !wp_mkdir_p($directory) || !chmod($root, 0700) || !chmod($directory, 0700)) {
             return new WP_Error('storage_unavailable', 'Protected storage is unavailable.', array('status' => 500));
         }
         $paths = array(); $meta_ids = array();
         try {
             foreach ($validated as $file) {
+                if (!$this->active_copy_case($id)) { throw new RuntimeException('The exception expired.'); }
                 $path = $directory . '/' . $file['filename'];
                 if (!move_uploaded_file($file['tmp'], $path)) { throw new RuntimeException('File storage failed.'); }
                 $paths[] = $path;
                 if (!chmod($path, 0600)) { throw new RuntimeException('File protection failed.'); }
                 unset($file['tmp']);
                 $file['uploaded_at'] = current_time('mysql'); $file['status'] = 'pending';
+                $file['copy_expires_at'] = $case['expires_at']; $file['copy_case_id'] = $case['case_id'];
                 $meta_id = add_post_meta($id, 'villa_claudia_document', $file);
                 if (!$meta_id) { throw new RuntimeException('Metadata storage failed.'); }
                 $meta_ids[] = $meta_id;
             }
             update_post_meta($id, 'villa_claudia_has_documents', true);
             if (!get_post_meta($id, 'villa_claudia_has_documents', true)) { throw new RuntimeException('Document status storage failed.'); }
+            if (!$this->active_copy_case($id)) { throw new RuntimeException('The exception expired during storage.'); }
+            $case['agreed_at'] = time();
+            update_post_meta($id, 'villa_claudia_copy_exception', $case);
+            if (get_post_meta($id, 'villa_claudia_copy_exception', true) !== $case) { throw new RuntimeException('Agreement audit storage failed.'); }
+            if (!$this->active_copy_case($id)) { throw new RuntimeException('The exception expired before storage completed.'); }
         } catch (Throwable $error) {
             foreach ($meta_ids as $meta_id) { delete_metadata_by_mid('post', $meta_id); }
             foreach ($paths as $path) { wp_delete_file($path); }
@@ -230,6 +197,7 @@ trait Villa_Claudia_Workflow {
             return new WP_Error('storage_failed', 'Documents were not saved. Please try again.', array('status' => 500));
         }
         return array('success' => true, 'storedCount' => count($paths), 'bookingId' => $id);
+        } finally { $this->release_copy_lock($lock); }
     }
 
     private function reminder_key($id) {

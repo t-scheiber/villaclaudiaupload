@@ -1,5 +1,6 @@
 import DocumentUploadForm from '@/components/document-upload-form';
-import { resolveBooking, WorkflowError } from '@/lib/wordpress';
+import PrivacyLinks from '@/components/privacy-links';
+import { copyExceptionAvailable, resolveBooking, WorkflowError } from '@/lib/wordpress';
 export const dynamic = 'force-dynamic';
 export const metadata = { robots: { index: false, follow: false }, referrer: 'no-referrer' as const };
 export default async function BookingUploadPage({ params }: { params: Promise<{ secureBookingId: string }> }) {
@@ -14,8 +15,11 @@ export default async function BookingUploadPage({ params }: { params: Promise<{ 
     </div>;
   }
   return <div className="container mx-auto py-20"><div className="text-center max-w-3xl mx-auto">
-    <h1 className="text-3xl font-bold mb-6">Upload Documents</h1>
-    <p className="mb-6">Please upload your travel documents for your stay at Villa Claudia</p>
-    <DocumentUploadForm bookingId={secureBookingId} bookingData={{ ...booking, bookingReference: `VC-${booking.bookingId}` }} maxTravelers={8} />
+    <h1 className="text-3xl font-bold mb-6">Guest registration</h1>
+    <p className="mb-4">Booking VC-{booking.bookingId}. Your stay is {booking.checkInDate} to {booking.checkOutDate}.</p>
+    <p className="mb-4">No advance identity-document copy is required. Please bring your original identity document for inspection and guest registration on arrival.</p>
+    <p className="mb-6">Keep this booking link private. Read our <PrivacyLinks />.</p>
+    {booking.copyException && (copyExceptionAvailable(booking.copyException) || booking.copyException.hasCopies === true) &&
+      <DocumentUploadForm bookingId={secureBookingId} bookingData={{ checkInDate: booking.checkInDate, checkOutDate: booking.checkOutDate, bookingReference: `VC-${booking.bookingId}` }} copyException={booking.copyException} />}
   </div></div>;
 }

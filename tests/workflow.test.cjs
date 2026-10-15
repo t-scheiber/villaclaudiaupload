@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const token = 'vc_' + 'a'.repeat(64);
-const booking = { bookingId: 42, guestName: 'Synthetic Guest', guestEmail: 'guest@example.invalid', checkInDate: '2026-09-29', checkOutDate: '2026-10-06', status: 'confirmed' };
+const booking = { bookingId: 42, guestName: 'Synthetic Guest', guestEmail: 'guest@example.invalid', checkInDate: '2026-09-29', checkOutDate: '2026-10-06', status: 'confirmed', copyException: { active: true, expiresAt: '2099-10-15T12:00:00Z', reason: 'Synthetic documented exception', travelerName: 'Synthetic Guest', hasCopies: false, caseId: 'synthetic-case' } };
 function loader({ fetch, mail = async () => ({ accepted: ['admin@example.invalid'] }), env = {} } = {}) {
   const cache = new Map();
   const environment = { WORDPRESS_API_URL: 'https://wp.invalid/wp-json/villa-claudia/v1', WORDPRESS_API_KEY: 'synthetic-key', NEXT_PUBLIC_BASE_URL: 'https://documents.invalid', EMAIL_HOST: 'smtp.invalid', EMAIL_USER: 'synthetic', EMAIL_PASSWORD: 'synthetic', ...env };
@@ -19,6 +19,7 @@ function loader({ fetch, mail = async () => ({ accepted: ['admin@example.invalid
     const customRequire = name => {
       if (name === 'next/server') return { NextResponse: { json: (body, init = {}) => new Response(JSON.stringify(body), { ...init, headers: { 'Content-Type': 'application/json', ...init.headers } }) } };
       if (name === 'nodemailer') return { createTransport: config => ({ sendMail: data => mail(data, config) }) };
+      if (name === '@/components/privacy-links') return { __esModule: true, default: 'PrivacyLinks' };
       if (name === '@/components/document-upload-form') return { __esModule: true, default: 'DocumentUploadForm' };
       if (name.startsWith('@/')) {
         const sourcePath = name.slice(2);
@@ -34,14 +35,15 @@ function loader({ fetch, mail = async () => ({ accepted: ['admin@example.invalid
   return load;
 }
 function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+const uploadHeaders = { 'x-booking-token': token, 'x-copy-agreement': 'true', 'x-copy-case-id': 'synthetic-case' };
 function uploadRequest(id = token, count = 1, documentNumber = 'NOT-AN-ID') {
-  const form = new FormData(); form.set('bookingId', id);
+  const form = new FormData(); form.set('bookingId', id); form.set('copyAgreement', 'true'); form.set('copyCaseId', 'synthetic-case');
   form.set('guestName', 'Attacker-chosen name'); form.set('email', 'different@example.invalid');
   for (let i = 0; i < count; i++) {
     form.append('files', new File(['%PDF-1.4\nsynthetic fixture'], 'same-name.pdf', { type: 'application/pdf' }));
     form.set(`fileMetadata[${i}]`, JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'passport', documentNumber }));
   }
-  return new Request('https://local.invalid/api/upload', { method: 'POST', body: form });
+  return new Request('https://local.invalid/api/upload', { method: 'POST', body: form, headers: { ...uploadHeaders, 'x-booking-token': id } });
 }
 test('national ID selection includes EU, EEA and Swiss guests without allowing unrelated citizenships', () => {
   const { acceptsNationalId } = loader()('components/document-upload-form.tsx');
@@ -51,7 +53,7 @@ test('national ID selection includes EU, EEA and Swiss guests without allowing u
 test('numeric, malformed, uppercase and encoded tokens are rejected before backend access', async () => {
   let calls = 0;
   const load = loader({ fetch: async () => { calls++; return json(booking); } });
-  for (const bad of ['420000000000000000', token.toUpperCase(), token + '\n', 'vc_%61' + 'a'.repeat(63), '../42', '']) {
+  for (const bad of ['420000000000000000', token.toUpperCase(), 'vc_%61' + 'a'.repeat(63), '../42', '']) {
     await assert.rejects(load('lib/wordpress.ts').resolveBooking(bad));
     const response = await load('app/api/upload/route.ts').POST(uploadRequest(bad));
     assert.equal(response.status, 404);
@@ -129,18 +131,16 @@ test('successful upload notifies with canonical booking data and strict TLS', as
   const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json({ success: true, storedCount: 1, bookingId: 42 }),
     mail: async (data, config) => { sent = { data, config }; return { accepted: ['admin@example.invalid'] }; } });
   const result = await (await load('app/api/upload/route.ts').POST(uploadRequest())).json();
-  assert.equal(result.notificationSent, true); assert.match(sent.data.text, /guest@example.invalid/); assert.doesNotMatch(sent.data.text, /different@example.invalid/);
+  assert.equal(result.notificationSent, true); assert.match(sent.data.text, /booking VC-42/); assert.match(sent.data.text, /https:\/\/wp.invalid\/wp-admin\/post.php\?post=42&action=edit/); assert.doesNotMatch(sent.data.text, /guest@example.invalid|Synthetic Guest|NOT-AN-ID/); assert.equal(sent.data.attachments, undefined); assert.doesNotMatch(sent.data.text, /different@example.invalid/);
   assert.equal(sent.config.tls.rejectUnauthorized, true); assert.equal(sent.config.requireTLS, true); assert.equal(sent.config.debug, false);
 });
-test('admin notifications keep duplicate original filenames separate and align them with guest details', async () => {
-  let sent;
-  const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json({ success: true, storedCount: 2, bookingId: 42 }),
-    mail: async data => { sent = data; return { accepted: ['admin@example.invalid'] }; } });
-  assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 2))).status, 201);
-  assert.equal(sent.attachments[0].filename, '1-same-name.pdf');
-  assert.equal(sent.attachments[1].filename, '2-same-name.pdf');
-  assert.match(sent.text, /1\. Synthetic Guest/); assert.match(sent.text, /2\. Synthetic Guest/);
+test('a second identity file is rejected without storage or notification', async () => {
+  let mails = 0, uploads = 0;
+  const load = loader({ fetch: async url => { if (url.includes('secure-booking')) return json(booking); uploads++; }, mail: async () => { mails++; } });
+  assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 2))).status, 400);
+  assert.equal(uploads, 0); assert.equal(mails, 0);
 });
+
 test('guest upload receipts preserve controlled errors and reconcile lost or malformed acknowledgements', async () => {
   const form = new FormData();
   const good = loader({ fetch: async () => json({ success: true, wordpressStorage: true, message: 'Saved without notification' }, 201) });
@@ -153,21 +153,19 @@ test('guest upload receipts preserve controlled errors and reconcile lost or mal
 });
 test('oversized request and excessive file count are rejected', async () => {
   const load = loader({ fetch: async () => json(booking) });
-  const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: 'small', headers: { 'Content-Length': String(28 * 1024 * 1024) } });
+  const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: 'small', headers: { ...uploadHeaders, 'Content-Length': String(28 * 1024 * 1024) } });
   assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 413);
   assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 9))).status, 400);
 });
-test('empty and whitespace-only document numbers fail before storage or notification', async () => {
-  let uploads = 0, mails = 0;
-  const load = loader({ fetch: async url => {
-    if (url.includes('secure-booking')) return json(booking);
-    uploads++; return json({ success: true, storedCount: 1, bookingId: 42 });
-  }, mail: async () => { mails++; return { accepted: ['admin@example.invalid'] }; } });
-  for (const number of ['', '   ', '\t\n']) {
-    assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest(token, 1, number))).status, 400);
-  }
-  assert.equal(uploads, 0); assert.equal(mails, 0);
+test('redundant identity numbers and arbitrary metadata are never forwarded to WordPress', async () => {
+  let upstream;
+  const load = loader({ fetch: async (url, init) => { if (url.includes('secure-booking')) return json(booking); upstream = init.body; return json({ success: true, storedCount: 1, bookingId: 42 }); } });
+  const form = await uploadRequest().formData();
+  form.set('fileMetadata[0]', JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'passport', documentNumber: 'MUST-NOT-PERSIST', arbitrary: 'MUST-NOT-PERSIST' }));
+  assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', headers: uploadHeaders, body: form }))).status, 201);
+  assert.deepEqual(JSON.parse(upstream.get('file_info_file_0')), { travelerName: 'Synthetic Guest', documentType: 'passport' });
 });
+
 test('cron fails closed when unconfigured, denies wrong secrets and surfaces backend errors', async () => {
   const request = new Request('https://local.invalid/api/cron/document-reminders');
   assert.equal((await loader()('app/api/cron/document-reminders/route.ts').GET(request)).status, 503);
@@ -257,23 +255,23 @@ test('invalid booking response shapes fail as upstream errors before exposing a 
   }
 });
 
-test('invalid or absent multipart bodies fail before backend access', async () => {
+test('invalid or absent multipart bodies fail after canonical authorization and before storage', async () => {
   let requests = 0;
   const load = loader({ fetch: async () => { requests++; return json(booking); } });
-  for (const request of [new Request('https://local.invalid/api/upload', { method: 'POST' }), new Request('https://local.invalid/api/upload', { method: 'POST', body: 'not multipart', headers: { 'content-type': 'multipart/form-data; boundary=missing' } })]) {
+  for (const request of [new Request('https://local.invalid/api/upload', { method: 'POST', headers: uploadHeaders }), new Request('https://local.invalid/api/upload', { method: 'POST', body: 'not multipart', headers: { ...uploadHeaders, 'content-type': 'multipart/form-data; boundary=missing' } })]) {
     assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 400);
   }
-  assert.equal(requests, 0);
+  assert.equal(requests, 2);
 });
 
 test('streamed oversized requests are bounded even when content length is missing or understated', async () => {
   let requests = 0;
   const load = loader({ fetch: async () => { requests++; return json(booking); } });
   for (const headers of [{}, { 'content-length': '1' }]) {
-    const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: new Uint8Array(27 * 1024 * 1024 + 1), headers });
+    const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: new Uint8Array(27 * 1024 * 1024 + 1), headers: { ...uploadHeaders, ...headers } });
     assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 413);
   }
-  assert.equal(requests, 0);
+  assert.equal(requests, 2);
 });
 
 test('file type, empty file, individual size and metadata limits fail before storage', async () => {
@@ -289,25 +287,26 @@ test('file type, empty file, individual size and metadata limits fail before sto
     { metadata: 'null' }, { metadata: 'invalid JSON' },
     { metadata: JSON.stringify({ travelerName: ' ', documentType: 'passport', documentNumber: 'TEST' }) },
     { metadata: JSON.stringify({ travelerName: 'x'.repeat(201), documentType: 'passport', documentNumber: 'TEST' }) },
-    { metadata: JSON.stringify({ travelerName: 'Synthetic', documentType: 'unknown', documentNumber: 'TEST' }) },
-    { metadata: JSON.stringify({ travelerName: 'Synthetic', documentType: 'passport', documentNumber: 'x'.repeat(101) }) },
+    { metadata: JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'unknown' }) },
+    { metadata: JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'residence_permit' }) },
+    { metadata: JSON.stringify({ travelerName: 'Synthetic Guest', documentType: 'drivers_license' }) },
   ];
   for (const scenario of cases) {
     const form = await uploadRequest().formData();
     if (scenario.file) form.set('files', scenario.file);
     if (scenario.metadata) form.set('fileMetadata[0]', scenario.metadata);
-    assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form }))).status, 400);
+    assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form, headers: uploadHeaders }))).status, 400);
   }
   assert.equal(uploads, 0);
 });
 
-test('combined document limit rejects a batch whose individual documents are allowed', async () => {
+test('multiple large documents are rejected by the single guest limit before storage', async () => {
   let uploads = 0;
   const load = loader({ fetch: async url => { if (url.includes('secure-booking')) return json(booking); uploads++; } });
   const form = await uploadRequest(token, 3).formData();
   form.delete('files');
   for (let i = 0; i < 3; i++) form.append('files', new File([new Uint8Array(8.5 * 1024 * 1024)], `synthetic-${i}.pdf`, { type: 'application/pdf' }));
-  assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form }))).status, 413);
+  assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form, headers: uploadHeaders }))).status, 400);
   assert.equal(uploads, 0);
 });
 
@@ -412,4 +411,82 @@ test('guest upload receipt supplies a safe success message and never displays no
   for (const error of ['', {}, null]) {
     await assert.rejects(loader({ fetch: async () => json({ success: false, error }, 500) })('lib/submit-documents.ts').submitDocuments(new FormData()), /contact Villa Claudia before uploading again/);
   }
+});
+
+
+test('default, expired and malformed exceptions reject before consuming any upload body', async () => {
+  for (const copyException of [undefined, { ...booking.copyException, active: false }, { ...booking.copyException, expiresAt: null }, { ...booking.copyException, expiresAt: '2020-01-01T00:00:00Z' }, { ...booking.copyException, expiresAt: 'tomorrow' }, { ...booking.copyException, reason: ' ' }, { ...booking.copyException, travelerName: '' }, { ...booking.copyException, caseId: '' }]) {
+    let read = false, calls = 0;
+    const load = loader({ fetch: async () => { calls++; return json({ ...booking, copyException }); } });
+    const request = { headers: new Headers(uploadHeaders), get body() { read = true; throw new Error('Must not read private body'); } };
+    const response = await load('app/api/upload/route.ts').POST(request);
+    assert.equal(response.status, 403); assert.equal(read, false); assert.equal(calls, 1);
+  }
+});
+
+test('missing agreement and stale case headers reject before reading multipart', async () => {
+  for (const patch of [{ 'x-copy-agreement': 'false' }, { 'x-copy-agreement': '' }, { 'x-copy-case-id': 'previous-case' }]) {
+    let read = false;
+    const load = loader({ fetch: async () => json(booking) });
+    const request = { headers: new Headers({ ...uploadHeaders, ...patch }), get body() { read = true; throw new Error('Must not read private body'); } };
+    assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 403); assert.equal(read, false);
+  }
+});
+
+test('already stored copy rejects duplicate submission before consuming the upload body', async () => {
+  let read = false;
+  const load = loader({ fetch: async () => json({ ...booking, copyException: { ...booking.copyException, hasCopies: true } }) });
+  const request = { headers: new Headers(uploadHeaders), get body() { read = true; throw new Error('Must not read duplicate copy'); } };
+  const response = await load('app/api/upload/route.ts').POST(request);
+  assert.equal(response.status, 409); assert.equal(read, false); assert.match((await response.json()).error, /already saved/);
+});
+
+test('multipart agreement, case, token and adult name must match canonical authorization', async () => {
+  for (const [field, value] of [['copyAgreement', 'false'], ['copyCaseId', 'previous-case'], ['bookingId', 'vc_' + 'b'.repeat(64)], ['fileMetadata[0]', JSON.stringify({ travelerName: 'Another adult', documentType: 'passport', documentNumber: 'TEST' })]]) {
+    let uploads = 0;
+    const load = loader({ fetch: async url => { if (url.includes('secure-booking')) return json(booking); uploads++; } });
+    const form = await uploadRequest().formData(); form.set(field, value);
+    assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form, headers: uploadHeaders }))).status, field === 'fileMetadata[0]' ? 400 : 403);
+    assert.equal(uploads, 0);
+  }
+});
+
+test('default private page gives arrival guidance without any upload component', async () => {
+  const page = await loader({ fetch: async () => json({ ...booking, copyException: undefined }) })('app/uploads/[secureBookingId]/page.tsx').default({ params: Promise.resolve({ secureBookingId: token }) });
+  const text = JSON.stringify(page);
+  assert.match(text, /No advance identity-document copy is required/); assert.match(text, /original identity document/); assert.doesNotMatch(text, /DocumentUploadForm/);
+});
+
+test('upload forwards the exact optional agreement and case to independently enforced WordPress storage', async () => {
+  let forwarded;
+  const load = loader({ fetch: async (url, init) => { if (url.includes('secure-booking')) return json(booking); forwarded = init.body; return json({ success: true, storedCount: 1, bookingId: 42 }); } });
+  assert.equal((await load('app/api/upload/route.ts').POST(uploadRequest())).status, 201);
+  assert.equal(forwarded.get('copyAgreement'), 'true'); assert.equal(forwarded.get('copyCaseId'), 'synthetic-case');
+});
+
+test('withdrawal validates canonical case, forwards only its token and confirms deletion receipt', async () => {
+  let forwarded;
+  const load = loader({ fetch: async (url, init) => { if (url.includes('secure-booking')) return json({ ...booking, copyException: { ...booking.copyException, active: false, expiresAt: '2020-01-01T00:00:00Z', hasCopies: true } }); forwarded = JSON.parse(init.body); return json({ success: true, withdrawn: true, deletedCount: 1 }); } });
+  const response = await load('app/api/copy-exception/withdraw/route.ts').POST(new Request('https://local.invalid/api/copy-exception/withdraw', { method: 'POST', headers: uploadHeaders }));
+  assert.equal(response.status, 200); assert.equal((await response.json()).deletedCount, 1); assert.deepEqual(forwarded, { uploadToken: token, copyCaseId: 'synthetic-case' }); assert.match(response.headers.get('cache-control'), /no-store/);
+});
+
+test('withdrawal rejects stale cases and malformed deletion acknowledgements', async () => {
+  for (const receipt of [null, { success: true, withdrawn: false, deletedCount: 0 }, { success: true, withdrawn: true, deletedCount: -1 }, { success: true, withdrawn: true, deletedCount: 1.5 }]) {
+    const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json(receipt) });
+    const response = await load('app/api/copy-exception/withdraw/route.ts').POST(new Request('https://local.invalid/withdraw', { method: 'POST', headers: uploadHeaders }));
+    assert.equal(response.status, 502); assert.match((await response.json()).error, /Withdrawal was not confirmed/);
+  }
+  let calls = 0;
+  const load = loader({ fetch: async () => { calls++; return json(booking); } });
+  assert.equal((await load('app/api/copy-exception/withdraw/route.ts').POST(new Request('https://local.invalid/withdraw', { method: 'POST', headers: { ...uploadHeaders, 'x-copy-case-id': 'stale' } }))).status, 403); assert.equal(calls, 1);
+});
+
+test('reminder mail describes arrival registration, voluntary exception and both privacy languages', async () => {
+  let sent;
+  const load = loader({ mail: async data => { sent = data; return { accepted: [booking.guestEmail] }; } });
+  await load('lib/email-config.ts').sendDocumentRequestEmail(token, booking.guestEmail, booking.guestName, new Date());
+  assert.match(sent.text, /No advance identity-document copy is required/); assert.match(sent.text, /original identity document/);
+  assert.match(sent.text, /https:\/\/documents.invalid\/privacy\n/); assert.match(sent.text, /https:\/\/documents.invalid\/privacy\/de/);
+  assert.doesNotMatch(sent.text, /upload documents for all travelers/); assert.equal(sent.attachments, undefined);
 });
