@@ -128,7 +128,31 @@ Hostinger staging was created at `qa20261015.villa-claudia.eu`. It is marked as 
 
 WooCommerce displayed a warning about its saved Stripe test webhook. The test webhook configuration was repaired for production and staging using test credentials. API verification confirmed enabled test endpoints with `livemode=false`, and production test mode remained disabled before and after. An isolated booking completed a EUR 3,010 test payment after a card-decline case, a failed 3-D Secure case and successful 3-D Secure authentication. Stripe verified `livemode=false`, the booking was confirmed and the order paid. The successful event had zero pending webhook deliveries; the staging handler recorded success and no outstanding failure.
 
-The same paid synthetic booking then passed the document reminder/upload flow through Next.js and WordPress, with guest and administrator messages captured privately. A native WooCommerce refund returned the full EUR 3,010, the order became refunded and the booking was cancelled. Stripe's API confirmed the refund succeeded. The cancelled booking's token returned 404 and the dates became available again. Synthetic records and files were cleaned up; the refunded order remains recoverable in trash with its refund attached. All payment and refund activity used test mode. These results do not establish actual external inbox delivery, statutory registration, live money movement or every supported payment method. Next.js production deployment is recorded separately when completed.
+The same paid synthetic booking then passed the document reminder/upload flow through Next.js and WordPress, with guest and administrator messages captured privately. A native WooCommerce refund returned the full EUR 3,010, the order became refunded and the booking was cancelled. Stripe's API confirmed the refund succeeded. The cancelled booking's token returned 404 and the dates became available again. Synthetic records and files were cleaned up; the refunded order remains recoverable in trash with its refund attached. All payment and refund activity used test mode. These results do not establish actual external inbox delivery, statutory registration, live money movement or every supported payment method.
+
+Hostinger completed production build `01a1408b-3944-704b-846c-6be14639a927` at `2026-10-15T17:11:42Z` from main commit `1087f3d47f4c36dd1aa0890cc67ee3ae75af5021`, using Node.js 22 and npm. That receipt predates the dependency refresh below and does not prove deployment of its newer package versions.
+
+## Compatible dependency refresh
+
+The follow-up refresh updates the compatible runtime and lint packages available on 15 October 2026.
+
+| Package | Previous installed version | Refreshed version |
+| --- | --- | --- |
+| Next.js | 16.3.8 | 16.4.1 |
+| Nodemailer | 10.1.0 | 10.1.1 |
+| React and React DOM | 19.3.0 | 19.3.1 |
+| Radix React Slot | 1.4.0 | 1.5.0 |
+| Lucide React | 1.55.0 | 1.57.0 |
+| Next.js ESLint plugin | 16.4.0 | 16.4.1 |
+| TypeScript ESLint packages | 8.71.1 | 8.71.2 |
+
+ESLint remains on the supported 10.12.0 release. The old `eslint-config-next/typescript` wrapper was replaced by its equivalent direct TypeScript ESLint configuration. Its unused transitive lint plugins required older ESLint peers. The enabled lint rules remain unchanged, including the Next.js rules and the two existing warning overrides. A clean install and the complete dependency-tree check passed without peer conflicts. The obsolete `@types/uuid` stub was removed because UUID includes its own declarations.
+
+`npm outdated` now lists only the held major upgrades to TypeScript 7.0.2 and Node type definitions 26.6.5. The project retains TypeScript 6.0.3 and Node type definitions 25.9.9. The current TypeScript ESLint release supports TypeScript below 6.1, so TypeScript 7 requires a coordinated tooling migration. These holds are explicit compatibility decisions, not completed updates.
+
+After the refresh, all 38 Node.js tests, lint and the production build passed on Node.js 22.23.3. `npm audit --omit=dev` reported zero known vulnerabilities in the production dependency tree. The full audit reported four high-severity development-tool findings through the chain `@next/eslint-plugin-next -> fast-glob -> micromatch -> braces`. The [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) lists no patched version; the registry still publishes 3.0.3 as latest. The audit's suggested Next.js lint-plugin downgrade to 14.2.35 was not applied. Recheck this advisory when an upstream fix is released. Do not describe the full development tree as vulnerability-free.
+
+The refreshed Next.js 16.4.1 build has passed local validation. A new Hostinger build and production smoke verification are still required before recording it as deployed.
 
 ## Changes from the old Word document
 
