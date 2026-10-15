@@ -122,6 +122,8 @@ Three German translations incorrectly stored in the English WooCommerce dictiona
 
 The WordPress privacy setting produces an empty checkout privacy URL. No published substitute was found. An English and German privacy draft is held locally for owner review and has not been published or enabled. Controller identity, legal duties, retention, recipients, provider agreements and actual cookies require confirmation before release.
 
+The privacy review also found [AZOP's official FAQ, question 33](https://azop.hr/najcesce-postavljena-pitanja/), which says apartment landlords obtain eVisitor information by inspecting identity documents and may not copy them. The existing scan-upload workflow therefore needs review against the operator's actual legal status and duties. Do not claim that collecting identity-document copies is required for statutory registration or that a comparable property's privacy policy establishes a legal basis. The draft distinguishes registration data from document copies and leaves this issue explicit for operator review.
+
 The public `/error_log` path initially returned HTTP 200 and was blocked during the inspection. The follow-up request returned HTTP 403 while the homepage remained HTTP 200. Sensitive environment/configuration files were restricted to mode `0600`. WordPress core and 15 plugins passed published checksum verification; eight plugins had no published checksums available. No checksum mismatch was reported.
 
 Hostinger staging was created at `qa20261015.villa-claudia.eu`. It is marked as staging, its cron is disabled, mail is captured privately, and outgoing requests are guarded to the staging site and Stripe for test preparation. Confirm those protections again before adding tests or extensions that can send data externally.
@@ -152,7 +154,9 @@ ESLint remains on the supported 10.12.0 release. The old `eslint-config-next/typ
 
 After the refresh, all 38 Node.js tests, lint and the production build passed on Node.js 22.23.3. `npm audit --omit=dev` reported zero known vulnerabilities in the production dependency tree. The full audit reported four high-severity development-tool findings through the chain `@next/eslint-plugin-next -> fast-glob -> micromatch -> braces`. The [braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) lists no patched version; the registry still publishes 3.0.3 as latest. The audit's suggested Next.js lint-plugin downgrade to 14.2.35 was not applied. Recheck this advisory when an upstream fix is released. Do not describe the full development tree as vulnerability-free.
 
-The refreshed Next.js 16.4.1 build has passed local validation. A new Hostinger build and production smoke verification are still required before recording it as deployed.
+The refreshed Next.js 16.4.1 application was merged in [PR 76](https://github.com/t-scheiber/villaclaudiaupload/pull/76), application revision `39f56cd71569a9b330baea045f3eb85879504e31`. GitHub's main-branch validation passed. Hostinger completed its Node.js 22/npm build and deployment at 17:41:18 UTC on 15 October 2026. Build logs confirmed Next.js 16.4.1 compiled and published successfully.
+
+Fresh production checks returned 200 for `/` and `/uploads`, a controlled expired-link page for an invalid upload token, 404 for an invalid booking API token, 401 for unauthenticated reminders, and 400 for a malformed upload request. Dynamic private pages and API errors emitted no-store headers. All checked document routes emitted `no-referrer` and `noindex, nofollow`. These checks created no booking, stored no document and sent no message. This receipt identifies the application revision; later documentation-only commits do not change that tested application code.
 
 ## Changes from the old Word document
 
