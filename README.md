@@ -54,7 +54,7 @@ If storage succeeds but notification fails, reconcile the stored state before re
 
 Deploy the complete normal WordPress plugin directory `villa-claudia-privacy/` and activate it. Keep its fonts, CSS, checkout script, manifest and font licenses together. The plugin disables optional analytics, Sourcebuster attribution and Reach injection, serves the existing fonts locally and replaces automatic Google Maps loading with an external directions link. Clear Divi's generated CSS/font cache and page caches for the target environment, then verify both languages.
 
-The notice describes necessary booking sessions, WooCommerce browser cart/checkout storage and Stripe's checkout resources. A valid paid order-received page clears `storeApiCartData`, `storeApiCartHash` and `storeApiNonce`. Abandoned checkout storage has no invented automatic expiry; browser clearing remains available. Private guest pages do not use their own visitor cookies or browser storage for guest data.
+The notice describes necessary booking sessions, WooCommerce browser cart/checkout storage and Stripe's checkout resources. A verified paid WooCommerce or MotoPress confirmation page clears `storeApiCartData`, `storeApiCartHash` and `storeApiNonce`. Abandoned checkout storage has no invented automatic expiry; browser clearing remains available. Private guest pages do not use their own visitor cookies or browser storage for guest data.
 
 ## Scheduled jobs and restore protection
 
@@ -72,4 +72,4 @@ WordPress owns availability, rates and Stripe payments. MotoPress seasons define
 
 The [15 October verification record](docs/operations.md#verification-record-for-15-october-2026) includes an isolated EUR 3,010 booking with card decline, failed and successful 3-D Secure, paid order and confirmed reservation, followed by a full test refund, cancellation and released dates. All funds were Stripe test mode and mail was captured privately. These checks do not establish live money movement, external inbox delivery, statutory registration or every payment method.
 
-The [privacy-release record](docs/operations.md#privacy-release-verification) separates the newer exception, cleanup, policy-parity and tracker checks from that earlier audit. Verify the active Git revision and all WordPress file hashes after each release.
+The [privacy verification report](docs/privacy-verification-2026-10-15.md) provides reproducible scope and commands. The [privacy-release record](docs/operations.md#privacy-release-verification) separates the newer exception, cleanup, policy-parity and tracker checks from that earlier audit. Verify the active Git revision and all WordPress file hashes after each release.
