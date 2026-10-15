@@ -14,6 +14,7 @@ $locale = 'en_GB';
 $TRP_LANGUAGE = 'en_GB';
 $orderReceived = false; $orderId = 123; $order = null; $enqueued = array();
 $reservationReceived = false; $payment = null;
+$policyPage = false;
 function add_filter($name, $callback, $priority = 10, $accepted = 1) { $GLOBALS['filters'][$name] = array($callback, $priority, $accepted); }
 function add_action($name, $callback, $priority = 10, $accepted = 1) { $GLOBALS['actions'][$name] = array($callback, $priority, $accepted); }
 function is_admin() { return $GLOBALS['admin']; }
@@ -22,7 +23,8 @@ function get_locale() { return $GLOBALS['locale']; }
 function wp_dequeue_script($handle) { $GLOBALS['dequeued'][] = $handle; }
 function remove_action($name, $callback, $priority) { $GLOBALS['removed'][] = array($name, $callback, $priority); }
 function plugins_url($path, $file) { return 'https://site.example.invalid/wp-content/plugins/villa-claudia-privacy/' . $path; }
-function home_url($path = '/') { return 'https://site.example.invalid' . $path; }
+function home_url($path = '/') { return 'https://site.example.invalid' . (($GLOBALS['TRP_LANGUAGE'] ?? '') === 'de_DE' ? '/de' : '') . $path; }
+function get_option($name) { return $name === 'home' ? 'https://site.example.invalid/' : false; }
 function wp_parse_url($url, $component) { return parse_url($url, $component); }
 function get_page_by_path($slug) { return $GLOBALS['pages'][$slug] ?? null; }
 function esc_html($text) { return htmlspecialchars($text, ENT_QUOTES, 'UTF-8'); }
@@ -32,7 +34,7 @@ function __return_true() { return true; }
 function __return_false() { return false; }
 function __return_empty_array() { return array(); }
 function is_order_received_page() { return $GLOBALS['orderReceived']; }
-function is_page($id) { return $id === 555 && $GLOBALS['reservationReceived']; }
+function is_page($id) { return is_array($id) ? $GLOBALS['policyPage'] : $id === 555 && $GLOBALS['reservationReceived']; }
 function get_query_var($name) { return $GLOBALS['orderId']; }
 function wc_get_order($id) { return $id === $GLOBALS['orderId'] ? $GLOBALS['order'] : false; }
 function absint($value) { return abs((int) $value); }
@@ -142,6 +144,11 @@ $pages['datenschutz'] = (object) array('post_status' => 'draft');
 check(vcp_policy_url() === 'https://site.example.invalid/privacy-policy/', 'German draft does not replace a published fallback');
 $pages['datenschutz']->post_status = 'publish';
 check(vcp_policy_url() === 'https://site.example.invalid/de/datenschutz/', 'German visitor uses the published German policy route');
+check(strpos(home_url('/de/datenschutz/'), '/de/de/') !== false && strpos(vcp_policy_url(), '/de/de/') === false, 'localized home_url cannot double the language prefix in the policy URL');
+$policyPage = true;
+check(vcp_policy_body_class(array('page')) === array('page', 'vcp-privacy-policy-page'), 'policy title wrapping is scoped to the actual policy pages');
+$policyPage = false;
+check(vcp_policy_body_class(array('page')) === array('page'), 'unrelated page headings retain their original styling');
 ob_start(); vcp_reservation_privacy_notice(); $notice = ob_get_clean();
 check(strpos($notice, '/de/datenschutz/') !== false && strpos($notice, 'Gästeanmeldung') !== false && strpos($notice, '<input') === false, 'MotoPress contact fields receive contextual German policy information without an extra consent condition');
 $TRP_LANGUAGE = 'en_GB'; ob_start(); vcp_reservation_privacy_notice(); $notice = ob_get_clean();

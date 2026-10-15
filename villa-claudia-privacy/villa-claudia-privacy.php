@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia privacy defaults
  * Description: Keeps optional tracking off, hosts the existing fonts locally and replaces automatic maps with an external link.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Thomas Scheiber
  */
 if (!defined('ABSPATH')) { exit; }
@@ -111,12 +111,19 @@ function vcp_policy_url($original = '', $policy_page_id = 0) {
     $german = vcp_is_german();
     $page = get_page_by_path($german ? 'datenschutz' : 'privacy-policy');
     if ($page && $page->post_status === 'publish') {
-        return home_url($german ? '/de/datenschutz/' : '/privacy-policy/');
+        // TranslatePress localizes home_url() on German requests. Start from
+        // the untranslated site option when adding the language prefix here.
+        return rtrim((string) get_option('home'), '/') . ($german ? '/de/datenschutz/' : '/privacy-policy/');
     }
     $english = get_page_by_path('privacy-policy');
-    return $english && $english->post_status === 'publish' ? home_url('/privacy-policy/') : '';
+    return $english && $english->post_status === 'publish' ? rtrim((string) get_option('home'), '/') . '/privacy-policy/' : '';
 }
 add_filter('privacy_policy_url', 'vcp_policy_url', PHP_INT_MAX, 2);
+function vcp_policy_body_class($classes) {
+    if (is_page(array('privacy-policy', 'datenschutz'))) { $classes[] = 'vcp-privacy-policy-page'; }
+    return $classes;
+}
+add_filter('body_class', 'vcp_policy_body_class');
 
 function vcp_checkout_privacy_text($text, $type) {
     if ($type !== 'checkout') { return $text; }
@@ -171,9 +178,9 @@ function vcp_completed_checkout_cache() {
     if (!vcp_valid_paid_receipt()) { return; }
     // Only the valid, paid receipt page clears the completed checkout cache.
     // Active checkout, failed payments and unrelated browser storage are kept.
-    wp_enqueue_script('villa-claudia-completed-checkout', plugins_url('assets/checkout-complete.js', __FILE__), array('wp-data'), '1.0.0', true);
+    wp_enqueue_script('villa-claudia-completed-checkout', plugins_url('assets/checkout-complete.js', __FILE__), array('wp-data'), '1.0.1', true);
 }
 add_action('wp_enqueue_scripts', 'vcp_completed_checkout_cache', 20);
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('villa-claudia-privacy', plugins_url('assets/privacy.css', __FILE__), array(), '1.0.0');
+    wp_enqueue_style('villa-claudia-privacy', plugins_url('assets/privacy.css', __FILE__), array(), '1.0.1');
 });
