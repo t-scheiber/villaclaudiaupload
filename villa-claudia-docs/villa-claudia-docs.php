@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.7.4
+ * Version: 1.7.6
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -653,7 +653,7 @@ class Villa_Claudia_Docs {
         return array(
             'status' => 'success',
             'message' => 'API is working correctly',
-            'version' => '1.7.4',
+            'version' => '1.7.6',
             'wordpress' => get_bloginfo('version'),
             'timestamp' => current_time('mysql')
         );

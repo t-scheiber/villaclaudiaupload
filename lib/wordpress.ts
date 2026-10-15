@@ -37,7 +37,9 @@ export async function wordpress<T>(path: string, init: RequestInit = {}): Promis
 export async function resolveBooking(token: unknown): Promise<Booking> {
   if (!validToken(token)) throw new WorkflowError(404, 'This upload link is invalid or has expired. Please request a new link.');
   const data = await wordpress<Booking>(`/secure-booking/${token}`);
-  if (!Number.isInteger(data.bookingId) || data.status !== 'confirmed' || !data.checkInDate || !data.checkOutDate) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !Number.isInteger(data.bookingId) || data.bookingId < 1 ||
+      data.status !== 'confirmed' || typeof data.guestName !== 'string' || typeof data.guestEmail !== 'string' ||
+      !data.checkInDate || !data.checkOutDate) {
     throw new WorkflowError(502, 'Invalid response from the document service.');
   }
   return data;

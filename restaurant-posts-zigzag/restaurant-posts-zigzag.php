@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Restaurant Posts Zigzag
  * Description: Displays restaurant posts in a zigzag layout for both default WordPress and Divi editor
- * Version: 1.4.5
+ * Version: 1.4.6
  * Author: Thomas Scheiber
  * Text Domain: restaurant-posts-zigzag
  */
@@ -501,7 +501,7 @@ function rpz_initialize_divi_extension() {
                 );
             }
             
-            function render($attrs, $content = null, $render_slug) {
+            function render($attrs, $content = null, $render_slug = '') {
                 $posts_count = $this->props['posts_count'];
                 $category = $this->props['category'];
                 
@@ -514,4 +514,4 @@ function rpz_initialize_divi_extension() {
         new RPZ_Divi_Module();
     }
 }
-add_action('et_builder_ready', 'rpz_initialize_divi_extension'); 
+add_action('et_builder_ready', 'rpz_initialize_divi_extension');

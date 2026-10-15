@@ -184,17 +184,22 @@ trait Villa_Claudia_Workflow {
             $size = filesize($file['tmp_name']); $total += $size;
             $mime = $finfo->file($file['tmp_name']);
             $info = json_decode((string) $request->get_param('file_info_' . $key), true);
+            $traveler_name = is_array($info) && is_string($info['travelerName'] ?? null) ? sanitize_text_field($info['travelerName']) : '';
+            $document_number = is_array($info) && is_string($info['documentNumber'] ?? null) ? sanitize_text_field($info['documentNumber']) : '';
             if ($size < 1 || $size > 10 * 1024 * 1024 || $total > 25 * 1024 * 1024 || !isset($allowed[$mime]) ||
                 !is_array($info) || !is_string($info['travelerName'] ?? null) || trim($info['travelerName']) === '' ||
+                trim($traveler_name) === '' || trim($document_number) === '' ||
+                !preg_match('/\A.{1,200}\z/us', $info['travelerName']) ||
                 !is_string($info['documentType'] ?? null) || !in_array($info['documentType'], array('passport', 'id_card', 'residence_permit', 'drivers_license'), true) ||
-                !is_string($info['documentNumber'] ?? null)) {
+                !is_string($info['documentNumber'] ?? null) || trim($info['documentNumber']) === '' ||
+                !preg_match('/\A.{1,100}\z/us', $info['documentNumber'])) {
                 return new WP_Error('invalid_file', 'Invalid document or metadata. Use JPEG, PNG or PDF within the size limits.', array('status' => 400));
             }
             $validated[] = array('tmp' => $file['tmp_name'], 'size' => $size, 'type' => $mime,
                 'filename' => bin2hex(random_bytes(24)) . '.' . $allowed[$mime],
                 'original_name' => sanitize_file_name($file['name']),
-                'traveler_name' => sanitize_text_field($info['travelerName']),
-                'document_type' => $info['documentType'], 'document_number' => sanitize_text_field($info['documentNumber']));
+                'traveler_name' => $traveler_name,
+                'document_type' => $info['documentType'], 'document_number' => $document_number);
         }
         $root = wp_upload_dir()['basedir'] . '/booking-documents';
         $directory = $root . '/' . $id;
