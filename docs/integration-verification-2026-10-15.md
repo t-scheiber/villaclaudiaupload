@@ -67,6 +67,8 @@ python scripts/verify-staging-checkout.py --url https://qa20261015.villa-claudia
 
 Replace the product placeholder with a fresh hidden synthetic product on the staging copy. The original inspection product is now in trash.
 
+The `qa20261015.villa-claudia.eu` copy used for these checks was deleted on 2026-10-15, so the command above no longer has a target. Point it at a new isolated copy and update the allowed hostname in `scripts/staging-guard.php` first. See [operations](operations.md) for details.
+
 Repeat the full integration run only on an isolated copy with mail capture, fresh synthetic fixtures and cron disabled. Configure the local app with the staging WordPress endpoint and service key, a synthetic SMTP identity, the trusted local capture certificate and a separate cron secret. Do not copy production SMTP settings into this test environment. Validate the upstream recipient list before triggering reminder processing. Private fixture tokens, keys, captured MIME files and temporary scripts stay outside the repository.
 
 ## Checkout defect found during the separate payment test
