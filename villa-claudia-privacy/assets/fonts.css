@@ -1,0 +1,37 @@
+/* Locally hosted original Google Fonts, licensed under SIL OFL 1.1. */
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 100;font-display: swap;src: url(fonts/780fae1d9a05dc693a7de4e4.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 200;font-display: swap;src: url(fonts/0009233a70da0f4f955ea470.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 300;font-display: swap;src: url(fonts/5ce7cc9655ca8023c55d8798.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 400;font-display: swap;src: url(fonts/8b7fa95d39bacb18363e1da2.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 500;font-display: swap;src: url(fonts/946b7fc105c9f097368776e0.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 600;font-display: swap;src: url(fonts/a943a9f54341cd6088a010d9.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 700;font-display: swap;src: url(fonts/c2fbdd17eb6dc2d18ee193b2.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 800;font-display: swap;src: url(fonts/3911c62f9007ba5fd85fa6bc.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: italic;font-weight: 900;font-display: swap;src: url(fonts/46aa129f53bf05f010e7c578.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 100;font-display: swap;src: url(fonts/4c1c5dbc8318518cba94f44b.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 200;font-display: swap;src: url(fonts/aed12c1130111c8a1d8fa7eb.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 300;font-display: swap;src: url(fonts/c3604ca7fa9e61eebd7c366a.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 400;font-display: swap;src: url(fonts/f7833f2b9d4b3ba648c46eee.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 500;font-display: swap;src: url(fonts/dd48308ee40356f9377af331.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 600;font-display: swap;src: url(fonts/4fefcb8f21554ab8b19c9507.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 700;font-display: swap;src: url(fonts/eb9a425e7ee0692b30b33863.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 800;font-display: swap;src: url(fonts/cfae102453fd51df92991387.woff2) format('woff2');}
+@font-face {font-family: 'Poppins';font-style: normal;font-weight: 900;font-display: swap;src: url(fonts/6953e3137af2594fae663082.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: italic;font-weight: 100;font-stretch: normal;font-display: swap;src: url(fonts/05794e16f8924dd4f1e00ef4.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: italic;font-weight: 300;font-stretch: normal;font-display: swap;src: url(fonts/993abf004e4b4289844bd292.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: italic;font-weight: 400;font-stretch: normal;font-display: swap;src: url(fonts/9a25243921cb7cc89362ffa3.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: italic;font-weight: 500;font-stretch: normal;font-display: swap;src: url(fonts/b78152b77d4112eb31b5913d.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: italic;font-weight: 700;font-stretch: normal;font-display: swap;src: url(fonts/cffae4559d92e5fd92260b57.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: italic;font-weight: 900;font-stretch: normal;font-display: swap;src: url(fonts/f2a5ecfcb15e291af5b19dd9.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: normal;font-weight: 100;font-stretch: normal;font-display: swap;src: url(fonts/b4b31c4c095e35bf2b9b022d.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: normal;font-weight: 300;font-stretch: normal;font-display: swap;src: url(fonts/799cb8d00a212860b67dd513.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: normal;font-weight: 400;font-stretch: normal;font-display: swap;src: url(fonts/89a36be189af22709f7965f7.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: normal;font-weight: 500;font-stretch: normal;font-display: swap;src: url(fonts/1270769a1e9275282c6d8a27.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: normal;font-weight: 700;font-stretch: normal;font-display: swap;src: url(fonts/3a18cb19d242ccc938f82f3f.woff2) format('woff2');}
+@font-face {font-family: 'Roboto';font-style: normal;font-weight: 900;font-stretch: normal;font-display: swap;src: url(fonts/22b2a136387eaf75992d61e8.woff2) format('woff2');}
+@font-face {font-family: 'Roboto Condensed';font-style: italic;font-weight: 300;font-display: swap;src: url(fonts/06a74c9e48fccf7646951e4c.woff2) format('woff2');}
+@font-face {font-family: 'Roboto Condensed';font-style: italic;font-weight: 400;font-display: swap;src: url(fonts/6a8de0639beb56e22488924f.woff2) format('woff2');}
+@font-face {font-family: 'Roboto Condensed';font-style: italic;font-weight: 700;font-display: swap;src: url(fonts/1088153e8b1fd357aeaf1bc8.woff2) format('woff2');}
+@font-face {font-family: 'Roboto Condensed';font-style: normal;font-weight: 300;font-display: swap;src: url(fonts/b9c5726d4188bc25639d6078.woff2) format('woff2');}
+@font-face {font-family: 'Roboto Condensed';font-style: normal;font-weight: 400;font-display: swap;src: url(fonts/8c3036063948389fd4b4cf43.woff2) format('woff2');}
+@font-face {font-family: 'Roboto Condensed';font-style: normal;font-weight: 700;font-display: swap;src: url(fonts/dc5ac4d346c9338732eef872.woff2) format('woff2');}

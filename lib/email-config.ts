@@ -33,8 +33,8 @@ export async function sendDocumentRequestEmail(uploadToken: string, guestEmail: 
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || 'Villa Claudia <administration@villa-claudia.eu>',
       to: guestEmail,
-      subject: 'Please Upload Your Travel Documents for Your Stay at Villa Claudia',
-      text: `Dear ${guestName},\n\nYour stay at Villa Claudia starts on ${checkInDate.toLocaleDateString('en-GB', { timeZone: 'Europe/Zagreb' })}. Please use your personal link to upload documents for all travelers:\n\n${uploadUrl}\n\nKeep this link private. It grants access to your booking's document form.\n\nIf you have questions, contact info@villa-claudia.eu.\n\nVilla Claudia Team`,
+      subject: 'Guest registration for your stay at Villa Claudia',
+      text: `Dear ${guestName},\n\nYour stay at Villa Claudia starts on ${checkInDate.toLocaleDateString('en-GB', { timeZone: 'Europe/Zagreb' })}. No advance identity-document copy is required. Please bring your original identity document for inspection and guest registration on arrival.\n\nYour private registration guidance: ${uploadUrl}\n\nKeep this link private. It grants access to your booking guidance and any documented optional registration exception. An exception concerns only your own adult document and always allows refusal or withdrawal without disadvantage.\n\nPrivacy notice: ${publicUrl.origin}/privacy\nDatenschutzhinweise: ${publicUrl.origin}/privacy/de\n\nQuestions: info@villa-claudia.eu.\n\nVilla Claudia Team`,
     });
     return { success: Boolean(info.accepted?.length) };
   } catch (error) {

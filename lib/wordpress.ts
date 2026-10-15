@@ -5,6 +5,16 @@ export class WorkflowError extends Error {
 export interface Booking {
   bookingId: number; guestName: string; guestEmail: string; checkInDate: string; checkOutDate: string; status: string;
   uploadToken?: string; hasUploadedDocuments?: boolean; reminderSent?: boolean;
+  copyException?: CopyException;
+}
+export interface CopyException {
+  active: boolean; expiresAt: string | null; reason: string; travelerName: string; hasCopies: boolean; caseId: string;
+}
+export function copyExceptionAvailable(value: CopyException | undefined, now = Date.now()): value is CopyException & { expiresAt: string } {
+  return Boolean(value && value.active === true && typeof value.expiresAt === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value.expiresAt) &&
+    Date.parse(value.expiresAt) > now && typeof value.reason === 'string' && value.reason.trim() &&
+    typeof value.travelerName === 'string' && value.travelerName.trim() && typeof value.caseId === 'string' && value.caseId.trim());
 }
 export function validToken(token: unknown): token is string {
   return typeof token === 'string' && /^vc_[a-f0-9]{64}$/.test(token);

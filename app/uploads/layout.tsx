@@ -2,8 +2,8 @@ import React from "react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Document Upload | Villa Claudia",
-  description: "Upload your travel documents for your stay at Villa Claudia",
+  title: "Guest registration | Villa Claudia",
+  description: "Bring your original identity document for guest registration at Villa Claudia",
 };
 
 export default function DocumentsLayout({

@@ -22,13 +22,19 @@ jobs:
       - run: |
           php -l villa-claudia-docs/villa-claudia-docs.php
           php -l villa-claudia-docs/workflow.php
+          php -l villa-claudia-docs/copy-privacy.php
           php -l cron-document-reminders.php
+          php -l cron-privacy-retention.php
+          php -l villa-claudia-privacy/villa-claudia-privacy.php
+          php -l scripts/publish-privacy.php
           php -l rates-display-plugin/villa-claudia-rates-display.php
           php -l restaurant-posts-zigzag/restaurant-posts-zigzag.php
           php -l scripts/staging-guard.php
           php tests/wordpress-workflow.php villa-claudia-docs/workflow.php
+          php tests/wordpress-copy-privacy.php villa-claudia-docs/workflow.php
           php tests/wordpress-calendar.php villa-claudia-docs/villa-claudia-docs.php
           php tests/wordpress-forwarding.php villa-claudia-docs/workflow.php
           php tests/wordpress-rates.php rates-display-plugin/villa-claudia-rates-display.php
           php tests/wordpress-upload.php
           php tests/staging-guard.php
+          php tests/wordpress-privacy.php

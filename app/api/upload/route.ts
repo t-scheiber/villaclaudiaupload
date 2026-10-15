@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createEmailTransporter } from '@/lib/email-config';
-import { privateHeaders, resolveBooking, wordpress, WorkflowError } from '@/lib/wordpress';
+import { copyExceptionAvailable, privateHeaders, resolveBooking, wordpress, WorkflowError } from '@/lib/wordpress';
 
 interface StoredResult { success: boolean; storedCount: number; bookingId: number }
-interface DocumentInfo { travelerName: string; documentType: string; documentNumber: string }
+interface DocumentInfo { travelerName: string; documentType: string }
 
 async function boundedFormData(request: NextRequest) {
   const limit = 27 * 1024 * 1024;
@@ -29,18 +29,24 @@ async function boundedFormData(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const form = await boundedFormData(request);
-    const token = form.get('bookingId');
+    const token = request.headers.get('x-booking-token');
     const booking = await resolveBooking(token);
+    if (!copyExceptionAvailable(booking.copyException)) throw new WorkflowError(403, 'No active document-copy exception. Please show your original identity document on arrival.');
+    if (booking.copyException.hasCopies === true) throw new WorkflowError(409, 'Your temporary copy is already saved. Please do not upload it again. You can withdraw and delete it from your private page.');
+    if (request.headers.get('x-copy-case-id') !== booking.copyException.caseId) throw new WorkflowError(403, 'This registration exception has changed. Please reload the private page before deciding.');
+    if (request.headers.get('x-copy-agreement') !== 'true') throw new WorkflowError(403, 'Your voluntary agreement is required for this optional document copy. You can show the original on arrival instead.');
+    const form = await boundedFormData(request);
+    if (form.get('bookingId') !== token || form.get('copyAgreement') !== 'true' || form.get('copyCaseId') !== booking.copyException.caseId) throw new WorkflowError(403, 'The booking, exception and voluntary agreement must match this private link.');
     const files = form.getAll('files');
-    if (files.length < 1 || files.length > 8 || files.some(file => !(file instanceof File))) {
-      throw new WorkflowError(400, 'Please upload between one and eight documents.');
+    if (files.length !== 1 || files.some(file => !(file instanceof File))) {
+      throw new WorkflowError(400, 'Upload one file containing only your own adult identity document.');
     }
     const documents = files as File[];
     if (documents.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024) throw new WorkflowError(413, 'Total document size exceeds 25 MiB.');
     const upstream = new FormData();
     upstream.set('uploadToken', token as string);
-    const metadata: DocumentInfo[] = [];
+    upstream.set('copyAgreement', 'true');
+    upstream.set('copyCaseId', booking.copyException.caseId);
     for (const [index, file] of documents.entries()) {
       if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type) || !file.size || file.size > 10 * 1024 * 1024) {
         throw new WorkflowError(400, 'Use JPEG, PNG or PDF files no larger than 10 MiB each.');
@@ -49,13 +55,12 @@ export async function POST(request: NextRequest) {
       try { info = JSON.parse(String(form.get(`fileMetadata[${index}]`))); }
       catch { throw new WorkflowError(400, 'Invalid document details.'); }
       if (!info || typeof info.travelerName !== 'string' || !info.travelerName.trim() || info.travelerName.length > 200 ||
-          typeof info.documentNumber !== 'string' || !info.documentNumber.trim() || info.documentNumber.length > 100 ||
-          !['passport', 'id_card', 'residence_permit', 'drivers_license'].includes(info.documentType)) {
+          !['passport', 'id_card'].includes(info.documentType)) {
         throw new WorkflowError(400, 'Please complete the details for each traveler.');
       }
-      metadata.push(info);
+      if (info.travelerName !== booking.copyException.travelerName) throw new WorkflowError(400, 'Only the named adult guest\'s own document can be uploaded for this exception.');
       upstream.append(`file_${index}`, file);
-      upstream.set(`file_info_file_${index}`, JSON.stringify(info));
+      upstream.set(`file_info_file_${index}`, JSON.stringify({ travelerName: booking.copyException.travelerName, documentType: info.documentType }));
     }
     const result = await wordpress<StoredResult>('/upload-documents', { method: 'POST', body: upstream });
     if (!result || typeof result !== 'object' || Array.isArray(result) || result.success !== true ||
@@ -67,12 +72,8 @@ export async function POST(request: NextRequest) {
       const mail = await createEmailTransporter().sendMail({
         from: process.env.EMAIL_FROM || 'Villa Claudia <administration@villa-claudia.eu>',
         to: process.env.ADMIN_EMAIL || 'administration@villa-claudia.eu',
-        subject: `[Villa Claudia] Travel Documents Uploaded - Booking ${booking.bookingId}`,
-        text: `Documents are saved in WordPress for booking ${booking.bookingId}.\nGuest: ${booking.guestName}\nEmail: ${booking.guestEmail}\n\n` +
-          metadata.map((info, index) => `${index + 1}. ${info.travelerName}: ${info.documentType} ${info.documentNumber}`).join('\n'),
-        attachments: await Promise.all(documents.map(async (file, index) => ({
-          filename: `${index + 1}-${file.name}`, content: Buffer.from(await file.arrayBuffer()), contentType: file.type,
-        }))),
+        subject: `[Villa Claudia] Registration exception - Booking ${booking.bookingId}`,
+        text: `A document copy is saved for booking VC-${booking.bookingId}.\nReview it in WordPress: ${new URL(`/wp-admin/post.php?post=${booking.bookingId}&action=edit`, process.env.WORDPRESS_API_URL).toString()}`,
       });
       notificationSent = Boolean(mail.accepted?.length);
     } catch { console.error('Documents stored; admin notification failed.', { bookingId: booking.bookingId }); }

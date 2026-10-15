@@ -1,0 +1,254 @@
+[
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiAyp8kv8JHgFVrJJLmE0tMMPI.woff2",
+    "file": "fonts/780fae1d9a05dc693a7de4e4.woff2",
+    "sha256": "780fae1d9a05dc693a7de4e489e47b2921567544a8a03d3e5d1b5dbcc47539d1",
+    "bytes": 11372
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLmv1pVGdeO.woff2",
+    "file": "fonts/0009233a70da0f4f955ea470.woff2",
+    "sha256": "0009233a70da0f4f955ea4705c59473224773704e743eb0a2fcb42cb234147cb",
+    "bytes": 11836
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLm21lVGdeO.woff2",
+    "file": "fonts/5ce7cc9655ca8023c55d8798.woff2",
+    "sha256": "5ce7cc9655ca8023c55d87983305d739f8262ddc83404e57f36edba5cc2274f3",
+    "bytes": 11872
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiGyp8kv8JHgFVrJJLufntA.woff2",
+    "file": "fonts/8b7fa95d39bacb18363e1da2.woff2",
+    "sha256": "8b7fa95d39bacb18363e1da2cf39ceb325529638a9c6469af0845bde2caaa9ea",
+    "bytes": 11804
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLmg1hVGdeO.woff2",
+    "file": "fonts/946b7fc105c9f097368776e0.woff2",
+    "sha256": "946b7fc105c9f097368776e069cc33f63d83569dbe73133efa5df97998b4876f",
+    "bytes": 11544
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLmr19VGdeO.woff2",
+    "file": "fonts/a943a9f54341cd6088a010d9.woff2",
+    "sha256": "a943a9f54341cd6088a010d9fe9ae41adc90586b94eea4d9e1b8a6441d66034b",
+    "bytes": 11880
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLmy15VGdeO.woff2",
+    "file": "fonts/c2fbdd17eb6dc2d18ee193b2.woff2",
+    "sha256": "c2fbdd17eb6dc2d18ee193b2ce72d9a9786024b951fbf3da4e696c4120df63a1",
+    "bytes": 11776
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLm111VGdeO.woff2",
+    "file": "fonts/3911c62f9007ba5fd85fa6bc.woff2",
+    "sha256": "3911c62f9007ba5fd85fa6bced12f4711bdb032d0bbf543dd9444bea9742aea9",
+    "bytes": 11788
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiDyp8kv8JHgFVrJJLm81xVGdeO.woff2",
+    "file": "fonts/46aa129f53bf05f010e7c578.woff2",
+    "sha256": "46aa129f53bf05f010e7c578cd952bf15b3e9cacde287940efe142f8f0841d60",
+    "bytes": 11444
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiGyp8kv8JHgFVrLPTufntA.woff2",
+    "file": "fonts/4c1c5dbc8318518cba94f44b.woff2",
+    "sha256": "4c1c5dbc8318518cba94f44b5183db3e062a1f6f03e4642031067bcac4af0cd4",
+    "bytes": 10324
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLFj_Z1JlFQ.woff2",
+    "file": "fonts/aed12c1130111c8a1d8fa7eb.woff2",
+    "sha256": "aed12c1130111c8a1d8fa7eb98a22955e961ecbaa138b8bcbe02878983a46b6b",
+    "bytes": 10808
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLDz8Z1JlFQ.woff2",
+    "file": "fonts/c3604ca7fa9e61eebd7c366a.woff2",
+    "sha256": "c3604ca7fa9e61eebd7c366a1e43d7528e771db62c665aac6aa106ac1f296f04",
+    "bytes": 10760
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJnecg.woff2",
+    "file": "fonts/f7833f2b9d4b3ba648c46eee.woff2",
+    "sha256": "f7833f2b9d4b3ba648c46eee21589c47c4efdf4acd04b09edcc392b457270746",
+    "bytes": 10892
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLGT9Z1JlFQ.woff2",
+    "file": "fonts/dd48308ee40356f9377af331.woff2",
+    "sha256": "dd48308ee40356f9377af33136cc86d4c7d06895a3031b636bb7fbeaab7fd87f",
+    "bytes": 10708
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1JlFQ.woff2",
+    "file": "fonts/4fefcb8f21554ab8b19c9507.woff2",
+    "sha256": "4fefcb8f21554ab8b19c950783ae4bc139fdd9df03900025635cbbc2ebd47256",
+    "bytes": 10992
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1JlFQ.woff2",
+    "file": "fonts/eb9a425e7ee0692b30b33863.woff2",
+    "sha256": "eb9a425e7ee0692b30b3386368a7e52dfd12f62f3d2bfc972e196d03586ca78b",
+    "bytes": 10712
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLDD4Z1JlFQ.woff2",
+    "file": "fonts/cfae102453fd51df92991387.woff2",
+    "sha256": "cfae102453fd51df92991387dc993593cda259d7ba4bf1e26758d75abdb9a9a5",
+    "bytes": 10780
+  },
+  {
+    "family": "Poppins",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLBT5Z1JlFQ.woff2",
+    "file": "fonts/6953e3137af2594fae663082.woff2",
+    "sha256": "6953e3137af2594fae663082bc3e10d60724192df2088805b788c1ad05b4670d",
+    "bytes": 10488
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLoHRuAb-kw.woff2",
+    "file": "fonts/05794e16f8924dd4f1e00ef4.woff2",
+    "sha256": "05794e16f8924dd4f1e00ef49b16eedc1fab52d8d35315ea3f2d846e3fd8024c",
+    "bytes": 29040
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLt_QuAb-kw.woff2",
+    "file": "fonts/993abf004e4b4289844bd292.woff2",
+    "sha256": "993abf004e4b4289844bd29210148b49d03751118cd3b6b4043126e2fe146cc6",
+    "bytes": 30240
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLoHQuAb-kw.woff2",
+    "file": "fonts/9a25243921cb7cc89362ffa3.woff2",
+    "sha256": "9a25243921cb7cc89362ffa3d7b63e3f9d92dbfd34cad71902ac9cc58aa1a5cb",
+    "bytes": 30064
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLrPQuAb-kw.woff2",
+    "file": "fonts/b78152b77d4112eb31b5913d.woff2",
+    "sha256": "b78152b77d4112eb31b5913d4545d8d9411b9bdb12b2114561444662b83e87d8",
+    "bytes": 30476
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLmbXuAb-kw.woff2",
+    "file": "fonts/cffae4559d92e5fd92260b57.woff2",
+    "sha256": "cffae4559d92e5fd92260b5784b5702ffa22e1825d9c11004afd239bc927081f",
+    "bytes": 30428
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLijXuAb-kw.woff2",
+    "file": "fonts/f2a5ecfcb15e291af5b19dd9.woff2",
+    "sha256": "f2a5ecfcb15e291af5b19dd926f376783a2fb2669c392caf8222777fcc3f7ec6",
+    "bytes": 30128
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbFmaiAo.woff2",
+    "file": "fonts/b4b31c4c095e35bf2b9b022d.woff2",
+    "sha256": "b4b31c4c095e35bf2b9b022df527ada90a6cacca117d75990d1c7533bd121d14",
+    "bytes": 27460
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmaiAo.woff2",
+    "file": "fonts/799cb8d00a212860b67dd513.woff2",
+    "sha256": "799cb8d00a212860b67dd513ab323538ff90b88ceab77417c93126c1523e3614",
+    "bytes": 28124
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmaiAo.woff2",
+    "file": "fonts/89a36be189af22709f7965f7.woff2",
+    "sha256": "89a36be189af22709f7965f784bd8df5b2291018e9837c88c4f83e97b8632c75",
+    "bytes": 27780
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWub2bVmaiAo.woff2",
+    "file": "fonts/1270769a1e9275282c6d8a27.woff2",
+    "sha256": "1270769a1e9275282c6d8a2728483f55af42cded69fe2c1b4c49e91a3c25e8cf",
+    "bytes": 28340
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmaiAo.woff2",
+    "file": "fonts/3a18cb19d242ccc938f82f3f.woff2",
+    "sha256": "3a18cb19d242ccc938f82f3f7e55862502b768121076930d440dd2d1c542deec",
+    "bytes": 28384
+  },
+  {
+    "family": "Roboto",
+    "source": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmaiAo.woff2",
+    "file": "fonts/22b2a136387eaf75992d61e8.woff2",
+    "sha256": "22b2a136387eaf75992d61e8864ec49e6180f89f6ebc7b658b18ed8d65510a6e",
+    "bytes": 27780
+  },
+  {
+    "family": "Roboto Condensed",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVW2ZhZI2eCN5jzbjEETS9weq8-19ehAyvMum7nfDB64UYK1XBpLA.woff2",
+    "file": "fonts/06a74c9e48fccf7646951e4c.woff2",
+    "sha256": "06a74c9e48fccf7646951e4cb1ec38954b9592cf5852f6a3b33b557d67165bb6",
+    "bytes": 28544
+  },
+  {
+    "family": "Roboto Condensed",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVW2ZhZI2eCN5jzbjEETS9weq8-19ehAyvMum7nfDB64RgK1XBpLA.woff2",
+    "file": "fonts/6a8de0639beb56e22488924f.woff2",
+    "sha256": "6a8de0639beb56e22488924f5eb0561d7c49b89d54abee5d1acf33ed9adb9052",
+    "bytes": 28144
+  },
+  {
+    "family": "Roboto Condensed",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVW2ZhZI2eCN5jzbjEETS9weq8-19ehAyvMum7nfDB64f8N1XBpLA.woff2",
+    "file": "fonts/1088153e8b1fd357aeaf1bc8.woff2",
+    "sha256": "1088153e8b1fd357aeaf1bc8692cfdec28c3a171a0b7c337d9cf46fc9ba91dee",
+    "bytes": 28676
+  },
+  {
+    "family": "Roboto Condensed",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVo2ZhZI2eCN5jzbjEETS9weq8-_d6T_POl0fRJeyXsosBA5Xw.woff2",
+    "file": "fonts/b9c5726d4188bc25639d6078.woff2",
+    "sha256": "b9c5726d4188bc25639d60789dd03e9bafe56a436af661b48f0ce1cea47e160e",
+    "bytes": 26320
+  },
+  {
+    "family": "Roboto Condensed",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVo2ZhZI2eCN5jzbjEETS9weq8-_d6T_POl0fRJeyWyosBA5Xw.woff2",
+    "file": "fonts/8c3036063948389fd4b4cf43.woff2",
+    "sha256": "8c3036063948389fd4b4cf43e5cf03b139be9080e738f951b12171be4b61a545",
+    "bytes": 26076
+  },
+  {
+    "family": "Roboto Condensed",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVo2ZhZI2eCN5jzbjEETS9weq8-_d6T_POl0fRJeyVVpcBA5Xw.woff2",
+    "file": "fonts/dc5ac4d346c9338732eef872.woff2",
+    "sha256": "dc5ac4d346c9338732eef872792bd79acc4c232bd25cfef13a5fa0958a5cdc66",
+    "bytes": 26636
+  }
+]

@@ -5,8 +5,8 @@ $root = sys_get_temp_dir() . '/vc-forwarding-' . bin2hex(random_bytes(8));
 mkdir($root, 0700);
 $meta = array(); $mails = array(); $mail_result = true; $mail_throws = false;
 class WP_Error {
-    public $code; public $message;
-    public function __construct($code, $message, $data) { $this->code = $code; $this->message = $message; }
+    public $code; public $message; public $data;
+    public function __construct($code, $message, $data) { $this->code = $code; $this->message = $message; $this->data = $data; }
 }
 function is_wp_error($value) { return $value instanceof WP_Error; }
 function is_email($value) { return filter_var($value, FILTER_VALIDATE_EMAIL); }
@@ -34,26 +34,16 @@ try {
     $info = array('traveler_name' => 'Synthetic Guest', 'document_type' => 'id_card', 'document_number' => 'NOT-AN-ID', 'status' => 'verified');
     $meta[42]['villa_claudia_document'] = array($info + array('filename' => 'front.jpg'), $info + array('filename' => 'back.jpg'));
     $h = new Harness();
-    check($h->send()['recorded'], 'complete forwarding records its accepted email');
-    check(count(array_unique($mails[0]['paths'])) === 2, 'front and back use different attachment names');
-    check($mails[0]['contents'] === array('SYNTHETIC FRONT', 'SYNTHETIC BACK'), 'both original document pages reach the mail stub');
-    check(!glob($root . '/booking-documents/send-*'), 'successful send removes all temporary files');
-    $meta[42]['villa_claudia_document'][0]['traveler_name'] = str_repeat('Long-name-', 30);
-    $meta[42]['villa_claudia_document'][0]['document_number'] = str_repeat('X', 100);
-    $h->send();
-    check(dirname($mails[0]['paths'][0]) !== dirname($mails[1]['paths'][0]), 'each forwarding attempt has a unique directory');
-    check(strlen(basename($mails[1]['paths'][0])) < 255, 'long guest metadata stays within filesystem filename limits');
-    check($h->send('invalid')->code === 'invalid_recipient' && count($mails) === 2, 'invalid recipient prevents file preparation and mail');
-    unlink($root . '/booking-documents/42/back.jpg');
-    unset($meta[42]['villa_claudia_documents_sent']);
-    check($h->send()->code === 'missing_document' && count($mails) === 2, 'one missing verified document blocks the entire send');
-    check(!isset($meta[42]['villa_claudia_documents_sent']), 'incomplete attachment set never gets a sent status');
-    check(!glob($root . '/booking-documents/send-*'), 'failed preparation leaves no temporary document copies');
-    file_put_contents($root . '/booking-documents/42/back.jpg', 'SYNTHETIC BACK');
-    $mail_result = false;
-    check($h->send()->code === 'mail_failed' && !glob($root . '/booking-documents/send-*'), 'mail rejection reports failure and cleans up');
-    $mail_throws = true;
-    check($h->send()->code === 'forwarding_failed' && !glob($root . '/booking-documents/send-*'), 'mail exception reports failure and cleans up');
-    $meta[42]['villa_claudia_document'][1]['filename'] = '../front.jpg';
-    check($h->send()->code === 'missing_document', 'unsafe stored filename is rejected');
+    foreach (array('operator@example.invalid', 'invalid', '') as $recipient) {
+        $result = $h->send($recipient);
+        check($result->code === 'copy_forwarding_disabled' && $result->data['status'] === 403, 'identity-copy forwarding is always forbidden regardless of recipient');
+    }
+    foreach (array('pending','verified','rejected') as $status) {
+        $meta[42]['villa_claudia_document'][0]['status']=$status;
+        check($h->send()->code === 'copy_forwarding_disabled', 'document review status never enables email copies');
+    }
+    check(count($mails) === 0, 'no forwarding attempt calls the mail provider');
+    check(!glob($root . '/booking-documents/send-*'), 'no forwarding attempt creates temporary copies');
+    check(!isset($meta[42]['villa_claudia_documents_sent']), 'blocked forwarding never records a successful send');
+    check(file_get_contents($root . '/booking-documents/42/front.jpg') === 'SYNTHETIC FRONT', 'blocked forwarding leaves original storage untouched');
 } finally { clean($root); }

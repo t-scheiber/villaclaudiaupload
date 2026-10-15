@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Villa Claudia Document Upload
  * Description: Integrates with MotoPress Hotel Booking to provide document upload functionality
- * Version: 1.7.6
+ * Version: 1.8.0
  * Author: Thomas Scheiber
  * Text Domain: villa-claudia-docs
  */
@@ -22,6 +22,11 @@ class Villa_Claudia_Docs {
     public function __construct() {
         // Initialize the plugin
         add_action('init', array($this, 'init'));
+        add_action('init', array($this, 'copy_privacy_bootstrap'));
+        add_action('villa_claudia_copy_cleanup', array($this, 'purge_expired_copies'));
+        add_action('admin_menu', array($this, 'copy_exception_admin_menu'));
+        add_action('add_meta_boxes', array($this, 'copy_exception_meta_box'));
+        add_action('admin_post_villa_copy_case', array($this, 'handle_copy_exception_admin'));
         add_filter('cron_schedules', array($this, 'calendar_schedules'));
         add_action('mphb_ical_auto_sync_parameters_fields', array($this, 'calendar_interval_field'));
         add_action('plugins_loaded', array($this, 'ensure_calendar_schedule'));
@@ -182,6 +187,10 @@ class Villa_Claudia_Docs {
      * Get or generate a secure booking ID for a booking
      */
     public function register_api_endpoints() {
+        register_rest_route('villa-claudia/v1', '/copy-exception/withdraw', array(
+            'methods' => 'POST', 'callback' => array($this, 'withdraw_copy_agreement'),
+            'permission_callback' => array($this, 'validate_api_key')
+        ));
         foreach (array('claim' => 'claim_reminder', 'complete' => 'complete_reminder') as $path => $callback) {
             register_rest_route('villa-claudia/v1', '/reminders/' . $path, array(
                 'methods' => 'POST', 'callback' => array($this, $callback),
@@ -296,7 +305,8 @@ class Villa_Claudia_Docs {
             'checkOutDate' => $check_out_date,
             'guestName' => $guest_name,
             'guestEmail' => $customer_email,
-            'status' => $booking_post->post_status
+            'status' => $booking_post->post_status,
+            'copyException' => $this->public_copy_exception($booking_post->ID)
         );
     }
     
@@ -373,8 +383,8 @@ class Villa_Claudia_Docs {
         // Add new Send to City admin page
         add_submenu_page(
             'document-uploads',
-            'Send Documents to City',
-            'Send to City',
+            'Guest registration',
+            'Guest registration',
             'manage_options',
             'send-to-city',
             array($this, 'send_to_city_page')
@@ -383,7 +393,7 @@ class Villa_Claudia_Docs {
     
     public function register_settings() {
         register_setting('villa_claudia_settings', 'villa_claudia_api_key');
-        register_setting('villa_claudia_settings', 'villa_claudia_city_email');
+        // Legacy city-email settings are no longer used for document delivery.
         register_setting('villa_claudia_settings', 'villa_claudia_smtp_password');
     }
     
@@ -403,15 +413,7 @@ class Villa_Claudia_Docs {
                             <p class="description">This key is used to authenticate API requests from the document upload application.</p>
                         </td>
                     </tr>
-                    <tr valign="top">
-                        <th scope="row">City Email Address</th>
-                        <td>
-                            <input type="email" style="width: 320px;" 
-                                   name="villa_claudia_city_email" 
-                                   value="<?php echo esc_attr(get_option('villa_claudia_city_email', '')); ?>" />
-                            <p class="description">Email address where guest documents will be sent for city registration.</p>
-                        </td>
-                    </tr>
+
                     <tr valign="top">
                         <th scope="row">SMTP Password</th>
                         <td>
@@ -533,45 +535,7 @@ class Villa_Claudia_Docs {
         
         echo '</tbody></table>';
 
-        // Add Send to City button if documents are verified
-        $all_verified = true;
-        foreach ($documents as $document) {
-            if (($document['status'] ?? 'pending') !== 'verified') {
-                $all_verified = false;
-                break;
-            }
-        }
-
-        if ($all_verified && !empty($documents)) {
-            echo '<div class="misc-pub-section">';
-            echo '<button type="button" class="button button-primary" id="send-to-city" style="width: 100%; margin-top: 10px;">';
-            echo 'Send Documents to City';
-            echo '</button>';
-            echo '</div>';
-            
-            // Add JavaScript to handle the button click
-            echo '<script>
-                jQuery(document).ready(function($) {
-                    $("#send-to-city").on("click", function() {
-                        if (confirm("Are you sure you want to send these documents to the city?")) {
-                            var data = {
-                                action: "villa_claudia_send_to_city",
-                                booking_id: ' . $post->ID . ',
-                                nonce: "' . wp_create_nonce('villa_claudia_send_to_city') . '"
-                            };
-                            
-                            $.post(ajaxurl, data, function(response) {
-                                if (response.success) {
-                                    alert(response.data);
-                                } else {
-                                    alert("Error: " + response.data);
-                                }
-                            });
-                        }
-                    });
-                });
-            </script>';
-        }
+        echo '<p>Do not email identity copies. Complete the registration in eVisitor, then delete copies through the booking privacy controls.</p>';
     }
     
     public function check_documents_exist($request) {
@@ -653,7 +617,7 @@ class Villa_Claudia_Docs {
         return array(
             'status' => 'success',
             'message' => 'API is working correctly',
-            'version' => '1.7.6',
+            'version' => '1.8.0',
             'wordpress' => get_bloginfo('version'),
             'timestamp' => current_time('mysql')
         );
@@ -959,11 +923,12 @@ class Villa_Claudia_Docs {
             $upload_url = 'https://documents.villa-claudia.eu/uploads/' . $secure_id;
             
             // Email content
-            $subject = 'Villa Claudia: Your Document Upload Link';
+            $subject = 'Villa Claudia: Guest registration information';
             $message = "Hello $guest_name,\n\n";
-            $message .= "Here is your secure link to upload your travel documents for your upcoming stay at Villa Claudia:\n\n";
+            $message .= "Please have your original identity document available at arrival for statutory guest registration. Advance copies are not routinely required. Your private booking page is:\n\n";
             $message .= $upload_url . "\n\n";
-            $message .= "This link is unique to your booking and ensures your documents are securely attached to your reservation.\n\n";
+            $message .= "This link is private to your booking. Only a documented exceptional case can enable an optional temporary copy. You may always choose original-document inspection instead.\n\n";
+            $message .= "Privacy policy: https://villa-claudia.eu/privacy-policy/\n\n";
             $message .= "If you have any questions, please don't hesitate to contact us.\n\n";
             $message .= "Best regards,\nVilla Claudia Team";
             
@@ -984,303 +949,15 @@ class Villa_Claudia_Docs {
     // Add handler for sending documents to city
     public function handle_send_to_city() {
         check_ajax_referer('villa_claudia_send_to_city', 'nonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('You do not have permission to perform this action');
-        }
-        
-        $booking_id = intval($_POST['booking_id']);
-        if (!$booking_id) {
-            wp_send_json_error('Invalid booking ID');
-        }
-        
-        // Get booking details
-        $booking = get_post($booking_id);
-        if (!$booking || $booking->post_type !== 'mphb_booking') {
-            wp_send_json_error('Booking not found');
-        }
-        
-        // Get guest info
-        $guest_info = get_post_meta($booking_id, 'mphb_guest_info', true);
-        $first_name = '';
-        $last_name = '';
-        
-        if (is_array($guest_info) && isset($guest_info['first_name'])) {
-            $first_name = $guest_info['first_name'];
-            $last_name = isset($guest_info['last_name']) ? $guest_info['last_name'] : '';
-        } else {
-            $first_name = get_post_meta($booking_id, 'mphb_first_name', true);
-            $last_name = get_post_meta($booking_id, 'mphb_last_name', true);
-        }
-        
-        $guest_name = trim($first_name . ' ' . $last_name);
-        $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
-        $check_out_date = get_post_meta($booking_id, 'mphb_check_out_date', true);
-        
-        // Calculate number of nights
-        $nights = 0;
-        if (!empty($check_in_date) && !empty($check_out_date)) {
-            $check_in = new DateTime($check_in_date);
-            $check_out = new DateTime($check_out_date);
-            $interval = $check_in->diff($check_out);
-            $nights = $interval->days;
-        }
-        
-        // Get documents
-        $documents = get_post_meta($booking_id, 'villa_claudia_document');
-        if (empty($documents)) {
-            wp_send_json_error('No documents found for this booking');
-        }
-        
-        // Group documents by traveler
-        $travelers = array();
-        foreach ($documents as $document) {
-            if ($document['status'] === 'verified') {
-                $traveler_name = $document['traveler_name'];
-                if (!isset($travelers[$traveler_name])) {
-                    $travelers[$traveler_name] = array(
-                        'name' => $traveler_name,
-                        'documents' => array()
-                    );
-                }
-                $travelers[$traveler_name]['documents'][] = $document;
-            }
-        }
-        
-        if (empty($travelers)) {
-            wp_send_json_error('No verified documents found for this booking');
-        }
-        
-        // Prepare email content
-        $subject = sprintf('Guest Documents - %s - Check-in: %s', $guest_name, $check_in_date);
-        
-        // Create simple pre-formatted text email for maximum Outlook compatibility
-        $message = "Dear City Administration,\r\n\r\n";
-        $message .= "Please find attached the documents for the following guests:\r\n\r\n";
-        $message .= "GUEST DOCUMENTS INFORMATION:\r\n";
-        
-        // Add each guest's information in a simple pre-formatted way
-        foreach ($travelers as $traveler) {
-            foreach ($traveler['documents'] as $document) {
-                if ($document['status'] === 'verified') {
-                    $message .= "---------------------------------------------\r\n";
-                    $message .= "Guest: " . esc_html($traveler['name']) . "\r\n";
-                    $message .= "Document Type: " . esc_html(ucfirst($document['document_type'])) . "\r\n";
-                    $message .= "Document Number: " . esc_html($document['document_number']) . "\r\n";
-                }
-            }
-        }
-        
-        $message .= "---------------------------------------------\r\n\r\n";
-        $message .= "Check-in Date: " . esc_html($check_in_date) . "\r\n";
-        $message .= "Check-out Date: " . esc_html($check_out_date) . "\r\n";
-        $message .= "Number of Nights: " . esc_html($nights) . "\r\n";
-        $message .= "Booking ID: " . esc_html($booking_id) . "\r\n\r\n";
-        $message .= "Best regards,\r\nVilla Claudia";
-        
-        $city_email = $this->get_config_value(
-            'villa_claudia_city_email',
-            array('VILLA_CLAUDIA_CITY_EMAIL'),
-            ''
-        );
-        $result = $this->send_verified_documents($booking_id, $city_email, $subject, $message);
-        if (is_wp_error($result)) {
-            wp_send_json_error($result->get_error_message());
-        }
-        wp_send_json_success($result['recorded']
-            ? 'Documents sent successfully'
-            : 'Email accepted, but the sent status could not be saved. Contact the administrator before resending.');
+        if (!current_user_can('manage_options')) { wp_send_json_error('Not authorized.', 403); }
+        wp_send_json_error('Identity copies are not forwarded by email. Register the guest in eVisitor and delete the temporary copy.', 403);
     }
 
-    // Add new method for the Send to City page
     public function send_to_city_page() {
-        // Check if form was submitted
-        if (isset($_POST['send_to_city_submit'])) {
-            check_admin_referer('villa_claudia_send_to_city_form');
-            
-            $booking_id = intval($_POST['booking_id']);
-            $recipient_email = sanitize_email($_POST['recipient_email']);
-            $subject = sanitize_text_field($_POST['email_subject']);
-            $message = sanitize_textarea_field($_POST['email_message']);
-            
-            $result = $this->send_verified_documents($booking_id, $recipient_email, $subject, $message);
-            if (is_wp_error($result)) {
-                echo '<div class="notice notice-error"><p>' . esc_html($result->get_error_message()) . '</p></div>';
-            } else {
-                echo '<div class="notice notice-success"><p>' . esc_html($result['recorded']
-                    ? 'Documents sent successfully!'
-                    : 'Email accepted, but the sent status could not be saved. Contact the administrator before resending.') . '</p></div>';
-            }
-        }
-
-        // Get all bookings with documents
-        global $wpdb;
-        $bookings_with_docs = $wpdb->get_col(
-            "SELECT post_id FROM {$wpdb->postmeta} 
-             WHERE meta_key = 'villa_claudia_has_documents' 
-             AND meta_value = '1'"
-        );
-        
-        ?>
-        <div class="wrap">
-            <h1>Send Documents to City</h1>
-            
-            <form method="post" action="">
-                <?php wp_nonce_field('villa_claudia_send_to_city_form'); ?>
-                
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="booking_id">Select Booking</label></th>
-                        <td>
-                            <select name="booking_id" id="booking_id" required>
-                                <option value="">Select a booking...</option>
-                                <?php
-                                foreach ($bookings_with_docs as $booking_id) {
-                                    $guest_info = get_post_meta($booking_id, 'mphb_guest_info', true);
-                                    $first_name = is_array($guest_info) && isset($guest_info['first_name']) ? $guest_info['first_name'] : get_post_meta($booking_id, 'mphb_first_name', true);
-                                    $last_name = is_array($guest_info) && isset($guest_info['last_name']) ? $guest_info['last_name'] : get_post_meta($booking_id, 'mphb_last_name', true);
-                                    $check_in_date = get_post_meta($booking_id, 'mphb_check_in_date', true);
-                                    
-                                    printf(
-                                        '<option value="%d">Booking #%d - %s %s (Check-in: %s)</option>',
-                                        $booking_id,
-                                        $booking_id,
-                                        esc_html($first_name),
-                                        esc_html($last_name),
-                                        esc_html($check_in_date)
-                                    );
-                                }
-                                ?>
-                            </select>
-                            <p class="description">Select the booking whose documents you want to send.</p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row"><label for="recipient_email">Recipient Email</label></th>
-                        <td>
-                            <input type="email" name="recipient_email" id="recipient_email" class="regular-text" 
-                                   value="<?php echo esc_attr($this->get_config_value('villa_claudia_city_email', array('VILLA_CLAUDIA_CITY_EMAIL'), '')); ?>" required>
-                            <p class="description">Enter the email address where the documents should be sent.</p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row"><label for="email_subject">Email Subject</label></th>
-                        <td>
-                            <input type="text" name="email_subject" id="email_subject" class="regular-text" 
-                                   placeholder="Guest Documents - [Guest Name] - Check-in: [Date]" required>
-                            <p class="description">Enter the subject line for the email.</p>
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row"><label for="email_message">Email Message</label></th>
-                        <td>
-                            <textarea name="email_message" id="email_message" class="large-text" rows="15" required>Dear City Administration,
-
-Please find attached the documents for the following guests:
-
-GUEST DOCUMENTS INFORMATION:
-[Guest Documents Table Rows]
----------------------------------------------
-
-Check-in Date: [Check-in Date]
-Check-out Date: [Check-out Date]
-Number of Nights: [Number of Nights]
-Booking ID: [Booking ID]
-
-Best regards,
-Villa Claudia</textarea>
-                            <p class="description">Enter the message body for the email. Plain text format is recommended for Outlook compatibility.</p>
-                        </td>
-                    </tr>
-                </table>
-                
-                <p class="submit">
-                    <input type="submit" name="send_to_city_submit" class="button button-primary" value="Send Documents">
-                </p>
-            </form>
-            
-            <script>
-            jQuery(document).ready(function($) {
-                var requestVersion = 0;
-                $('#booking_id').on('change', function() {
-                    var version = ++requestVersion;
-                    var sendButton = $('input[name=send_to_city_submit]').prop('disabled', true);
-                    $('#email_subject, #email_message').val('');
-                    var bookingId = $(this).val();
-                    if (bookingId) {
-                        $.post(ajaxurl, {
-                            action: 'villa_claudia_get_booking_docs',
-                            booking_id: bookingId,
-                            nonce: '<?php echo wp_create_nonce("villa_claudia_get_docs"); ?>'
-                        }, function(response) {
-                            if (version !== requestVersion || bookingId !== $('#booking_id').val()) { return; }
-                            if (response.success) {
-                                var guestName = $('option:selected', '#booking_id').text().split(' - ')[1];
-                                var bookingInfo = $('option:selected', '#booking_id').text().split('Check-in: ')[1].replace(')', '');
-                                var checkInDate = bookingInfo;
-                                var checkOutDate = '';
-                                var nights = 0;
-                                
-                                // Get check-out date and calculate nights
-                                $.post(ajaxurl, {
-                                    action: 'villa_claudia_get_booking_dates',
-                                    booking_id: bookingId,
-                                    nonce: '<?php echo wp_create_nonce("villa_claudia_get_dates"); ?>'
-                                }, function(datesResponse) {
-                                    if (version !== requestVersion || bookingId !== $('#booking_id').val()) { return; }
-                                    if (datesResponse.success) {
-                                        checkInDate = datesResponse.data.check_in_date;
-                                        checkOutDate = datesResponse.data.check_out_date;
-                                        nights = datesResponse.data.nights;
-                                        
-                                        // Update subject
-                                        $('#email_subject').val('Guest Documents - ' + guestName + ' - Check-in: ' + checkInDate);
-                                        
-                                        // Create plain text rows for documents
-                                        var tableRows = '';
-                                        response.data.forEach(function(doc) {
-                                            if (doc.status === 'verified') {
-                                                tableRows += "---------------------------------------------\n";
-                                                tableRows += "Guest: " + doc.traveler_name + "\n";
-                                                tableRows += "Document Type: " + doc.document_type + "\n";
-                                                tableRows += "Document Number: " + doc.document_number + "\n";
-                                            }
-                                        });
-                                        
-                                        // Create plain text email template
-                                        var messageTemplate = `Dear City Administration,
-
-Please find attached the documents for the following guests:
-
-GUEST DOCUMENTS INFORMATION:
-${tableRows}---------------------------------------------
-
-Check-in Date: ${checkInDate}
-Check-out Date: ${checkOutDate}
-Number of Nights: ${nights}
-Booking ID: ${bookingId}
-
-Best regards,
-Villa Claudia`;
-                                        
-                                        $('#email_message').val(messageTemplate);
-                                        sendButton.prop('disabled', false);
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
-            });
-            </script>
-        </div>
-        <?php
+        if (!current_user_can('manage_options')) { wp_die('Not authorized.', '', array('response' => 403)); }
+        echo '<div class="wrap"><h1>Guest registration</h1><p>Complete statutory guest registration in eVisitor. This website does not submit registrations to eVisitor and does not email identity copies.</p><p><a class="button" rel="noopener noreferrer" target="_blank" href="https://www.evisitor.hr/eVisitor/">Open eVisitor</a></p><p>Use the privacy controls on a booking to record an exceptional temporary-copy arrangement or to confirm registration and delete copies.</p></div>';
     }
 
-    // Add this new method to the class
     public function ajax_get_booking_docs() {
         check_ajax_referer('villa_claudia_get_docs', 'nonce');
         
