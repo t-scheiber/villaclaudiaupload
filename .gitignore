@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/.audit/
+/audit-production.json
+/docs/privacy-policy-draft.md
 
 # next.js
 /.next/

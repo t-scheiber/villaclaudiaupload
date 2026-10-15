@@ -235,3 +235,181 @@ test('missing SMTP configuration fails before consuming any reminder claim', asy
   assert.equal((await load('lib/document-scheduler.ts').processDocumentReminders(new Date('2026-09-22T12:00Z'))).failed, 1);
   assert.equal(claims, 0);
 });
+
+test('every malformed storage acknowledgement requires reconciliation without sending mail', async () => {
+  for (const receipt of [null, [], true, 'saved', { success: true, storedCount: 1, bookingId: 43 }]) {
+    let mails = 0;
+    const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json(receipt), mail: async () => { mails++; } });
+    const response = await load('app/api/upload/route.ts').POST(uploadRequest());
+    assert.equal(response.status, 502);
+    assert.match((await response.json()).error, /contact us before retrying/);
+    assert.equal(mails, 0);
+    assert.match(response.headers.get('cache-control'), /no-store/);
+  }
+});
+
+test('invalid booking response shapes fail as upstream errors before exposing a form', async () => {
+  for (const receipt of [null, [], true, { ...booking, bookingId: -1 }, { ...booking, guestEmail: null }, { ...booking, guestName: null }]) {
+    const load = loader({ fetch: async () => json(receipt) });
+    const response = await load('app/api/booking/route.ts').GET(new Request('https://local.invalid/api/booking?id=' + token));
+    assert.equal(response.status, 502);
+    assert.match((await response.json()).error, /Invalid response/);
+  }
+});
+
+test('invalid or absent multipart bodies fail before backend access', async () => {
+  let requests = 0;
+  const load = loader({ fetch: async () => { requests++; return json(booking); } });
+  for (const request of [new Request('https://local.invalid/api/upload', { method: 'POST' }), new Request('https://local.invalid/api/upload', { method: 'POST', body: 'not multipart', headers: { 'content-type': 'multipart/form-data; boundary=missing' } })]) {
+    assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 400);
+  }
+  assert.equal(requests, 0);
+});
+
+test('streamed oversized requests are bounded even when content length is missing or understated', async () => {
+  let requests = 0;
+  const load = loader({ fetch: async () => { requests++; return json(booking); } });
+  for (const headers of [{}, { 'content-length': '1' }]) {
+    const request = new Request('https://local.invalid/api/upload', { method: 'POST', body: new Uint8Array(27 * 1024 * 1024 + 1), headers });
+    assert.equal((await load('app/api/upload/route.ts').POST(request)).status, 413);
+  }
+  assert.equal(requests, 0);
+});
+
+test('file type, empty file, individual size and metadata limits fail before storage', async () => {
+  let uploads = 0;
+  const load = loader({ fetch: async url => {
+    if (url.includes('secure-booking')) return json(booking);
+    uploads++; return json({ success: true, storedCount: 1, bookingId: 42 });
+  } });
+  const cases = [
+    { file: new File(['synthetic'], 'bad.html', { type: 'text/html' }) },
+    { file: new File([], 'empty.pdf', { type: 'application/pdf' }) },
+    { file: new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'large.pdf', { type: 'application/pdf' }) },
+    { metadata: 'null' }, { metadata: 'invalid JSON' },
+    { metadata: JSON.stringify({ travelerName: ' ', documentType: 'passport', documentNumber: 'TEST' }) },
+    { metadata: JSON.stringify({ travelerName: 'x'.repeat(201), documentType: 'passport', documentNumber: 'TEST' }) },
+    { metadata: JSON.stringify({ travelerName: 'Synthetic', documentType: 'unknown', documentNumber: 'TEST' }) },
+    { metadata: JSON.stringify({ travelerName: 'Synthetic', documentType: 'passport', documentNumber: 'x'.repeat(101) }) },
+  ];
+  for (const scenario of cases) {
+    const form = await uploadRequest().formData();
+    if (scenario.file) form.set('files', scenario.file);
+    if (scenario.metadata) form.set('fileMetadata[0]', scenario.metadata);
+    assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form }))).status, 400);
+  }
+  assert.equal(uploads, 0);
+});
+
+test('combined document limit rejects a batch whose individual documents are allowed', async () => {
+  let uploads = 0;
+  const load = loader({ fetch: async url => { if (url.includes('secure-booking')) return json(booking); uploads++; } });
+  const form = await uploadRequest(token, 3).formData();
+  form.delete('files');
+  for (let i = 0; i < 3; i++) form.append('files', new File([new Uint8Array(8.5 * 1024 * 1024)], `synthetic-${i}.pdf`, { type: 'application/pdf' }));
+  assert.equal((await load('app/api/upload/route.ts').POST(new Request('https://local.invalid/api/upload', { method: 'POST', body: form }))).status, 413);
+  assert.equal(uploads, 0);
+});
+
+test('unaccepted notification preserves saved documents and explicitly warns the guest', async () => {
+  const load = loader({ fetch: async url => url.includes('secure-booking') ? json(booking) : json({ success: true, storedCount: 1, bookingId: 42 }), mail: async () => ({ accepted: [], rejected: ['admin@example.invalid'] }) });
+  const response = await load('app/api/upload/route.ts').POST(uploadRequest());
+  const receipt = await response.json();
+  assert.equal(response.status, 201);
+  assert.equal(receipt.wordpressStorage, true);
+  assert.equal(receipt.notificationSent, false);
+  assert.match(receipt.message, /do not need to upload again/);
+});
+
+test('SMTP ports and secure URL requirements fail closed', () => {
+  for (const env of [{ EMAIL_PORT: '25' }, { EMAIL_PORT: 'NaN' }, { NEXT_PUBLIC_BASE_URL: 'http://documents.invalid' }, { NEXT_PUBLIC_BASE_URL: '' }, { EMAIL_HOST: '' }, { EMAIL_USER: '' }]) {
+    assert.throws(() => loader({ env })('lib/email-config.ts').createEmailTransporter());
+  }
+});
+
+test('implicit TLS port and configured sender are used for reminder mail', async () => {
+  let sent;
+  const load = loader({ env: { EMAIL_PORT: '465', EMAIL_FROM: 'Villa Test <test@example.invalid>' }, mail: async (data, config) => { sent = { data, config }; return { accepted: ['guest@example.invalid'] }; } });
+  const receipt = await load('lib/email-config.ts').sendDocumentRequestEmail(token, booking.guestEmail, booking.guestName, new Date('2026-09-29T12:00:00Z'));
+  assert.equal(receipt.success, true);
+  assert.equal(sent.config.secure, true);
+  assert.equal(sent.config.requireTLS, false);
+  assert.equal(sent.data.from, 'Villa Test <test@example.invalid>');
+  assert.match(sent.data.text, new RegExp('/uploads/' + token));
+});
+
+test('reminder completion failure retains uncertainty and never reports sent', async () => {
+  let mails = 0;
+  const load = loader({ fetch: async url => {
+    if (url.endsWith('/bookings/upcoming')) return json([booking]);
+    if (url.endsWith('/reminders/claim')) return json({ claimed: true, claimId: 'claim', uploadToken: token, booking });
+    return json({}, 500);
+  }, mail: async () => { mails++; return { accepted: [booking.guestEmail] }; } });
+  const result = await load('lib/document-scheduler.ts').processDocumentReminders(new Date('2026-09-22T12:00Z'));
+  assert.equal(mails, 1); assert.equal(result.failed, 1); assert.equal(result.sent, 0);
+});
+
+test('ineligible, already uploaded and already reminded bookings never acquire a claim', async () => {
+  let claims = 0;
+  const load = loader({ fetch: async url => {
+    if (url.endsWith('/bookings/upcoming')) return json([{ ...booking, status: 'cancelled' }, { ...booking, hasUploadedDocuments: true }, { ...booking, reminderSent: true }, { ...booking, checkInDate: '2026-10-10' }, { ...booking, guestEmail: '' }]);
+    claims++; throw new Error('Unexpected claim');
+  } });
+  const result = await load('lib/document-scheduler.ts').processDocumentReminders(new Date('2026-09-22T12:00Z'));
+  assert.equal(claims, 0); assert.equal(result.processed, 0); assert.equal(result.skipped, 1);
+});
+
+test('missing WordPress configuration and invalid backend JSON fail closed', async () => {
+  for (const env of [{ WORDPRESS_API_URL: '' }, { WORDPRESS_API_KEY: '' }]) {
+    await assert.rejects(loader({ env })('lib/wordpress.ts').resolveBooking(token), error => error.status === 503);
+  }
+  await assert.rejects(loader({ fetch: async () => new Response('not JSON') })('lib/wordpress.ts').resolveBooking(token), error => error.status === 502 && /Invalid response/.test(error.message));
+  await assert.rejects(loader({ fetch: async () => { throw new Error('Synthetic network outage'); } })('lib/wordpress.ts').resolveBooking(token), error => error.status === 503 && /temporarily unavailable/.test(error.message));
+  for (const status of [400, 403, 404, 410, 401, 429, 500]) {
+    await assert.rejects(loader({ fetch: async () => json({}, status) })('lib/wordpress.ts').resolveBooking(token), error => error.status === ([400, 403, 404, 410].includes(status) ? status : 502));
+  }
+});
+
+test('reminders reject invalid lists and claim snapshots without sending mail', async () => {
+  await assert.rejects(loader({ fetch: async () => json({ bookings: [] }) })('lib/document-scheduler.ts').processDocumentReminders(), /Invalid upcoming bookings/);
+  for (const claim of [{ claimed: false }, { claimed: true }, { claimed: true, claimId: 'claim', uploadToken: token, booking: { ...booking, bookingId: 99 } }]) {
+    let mails = 0;
+    const load = loader({ fetch: async url => url.endsWith('/bookings/upcoming') ? json([booking]) : json(claim), mail: async () => { mails++; } });
+    const result = await load('lib/document-scheduler.ts').processDocumentReminders(new Date('2026-09-22T12:00Z'));
+    assert.equal(mails, 0);
+    assert.equal(claim.claimed ? result.failed : result.skipped, 1);
+  }
+});
+
+test('reminder email validates tokens and public URLs before sending', async () => {
+  for (const [id, env] of [['42', {}], [token, { NEXT_PUBLIC_BASE_URL: '' }], [token, { NEXT_PUBLIC_BASE_URL: 'http://documents.invalid' }]]) {
+    let mails = 0;
+    const load = loader({ env, mail: async () => { mails++; } });
+    await assert.rejects(load('lib/email-config.ts').sendDocumentRequestEmail(id, booking.guestEmail, booking.guestName, new Date()));
+    assert.equal(mails, 0);
+  }
+});
+
+test('definitive SMTP transaction rejection releases a reminder for correction', async () => {
+  for (const failure of [{ command: 'RCPT TO' }, { responseCode: 550 }, { code: 'EDNS' }]) {
+    const load = loader({ mail: async () => { throw Object.assign(new Error('Synthetic rejection'), failure); } });
+    const result = await load('lib/email-config.ts').sendDocumentRequestEmail(token, booking.guestEmail, booking.guestName, new Date());
+    assert.equal(result.success, false); assert.equal(result.uncertain, false);
+  }
+});
+
+test('authorized empty cron run succeeds and equal-length wrong secrets stay unauthorized', async () => {
+  let requests = 0;
+  const load = loader({ env: { CRON_SECRET: 'synthetic' }, fetch: async () => { requests++; return json([]); } });
+  const route = load('app/api/cron/document-reminders/route.ts');
+  assert.equal((await route.GET(new Request('https://local.invalid/api/cron/document-reminders', { headers: { authorization: 'Bearer synthetix' } }))).status, 401);
+  const response = await route.POST(new Request('https://local.invalid/api/cron/document-reminders', { headers: { authorization: 'Bearer synthetic' } }));
+  assert.equal(response.status, 200); assert.equal((await response.json()).success, true); assert.equal(requests, 1);
+});
+
+test('guest upload receipt supplies a safe success message and never displays non-string errors', async () => {
+  assert.equal(await loader({ fetch: async () => json({ success: true, wordpressStorage: true }) })('lib/submit-documents.ts').submitDocuments(new FormData()), 'Your documents have been saved.');
+  for (const error of ['', {}, null]) {
+    await assert.rejects(loader({ fetch: async () => json({ success: false, error }, 500) })('lib/submit-documents.ts').submitDocuments(new FormData()), /contact Villa Claudia before uploading again/);
+  }
+});

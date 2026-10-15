@@ -2,6 +2,8 @@
 
 Next.js guest document form with a WordPress/MotoPress storage and booking API. Production runs Node.js 22 and npm on Hostinger. The installed WordPress plugin is in `villa-claudia-docs/`.
 
+The [operations manual](docs/operations.md) covers the WordPress booking flow, Hostinger mailboxes, credential handling, safe updates, sandbox testing, and incident recovery. Its dated verification record distinguishes successful checks from work that still needs an end-to-end test.
+
 ## Configuration
 
 Set these server variables in Hostinger. Never commit values or include them in logs:
@@ -20,6 +22,8 @@ php tests/wordpress-workflow.php villa-claudia-docs/workflow.php
 php tests/wordpress-calendar.php villa-claudia-docs/villa-claudia-docs.php
 php tests/wordpress-forwarding.php villa-claudia-docs/workflow.php
 php tests/wordpress-rates.php rates-display-plugin/villa-claudia-rates-display.php
+php tests/wordpress-upload.php
+php tests/staging-guard.php
 ```
 
 These tests do not load a production database or send email. The forwarding checks use synthetic local files and a mail stub.
@@ -42,7 +46,7 @@ The guest form offers national ID cards for EU, EEA and Swiss citizenships. This
 
 ## Reminders
 
-The existing daily Hostinger job runs `cron-document-reminders.php` through PHP CLI. It calls `GET /api/cron/document-reminders` with a Bearer secret. POST is also supported. Missing configuration fails closed; backend and mail errors produce a failing cron result. The script reads `CRON_SECRET` from its environment or the protected `.env.cron` beside it. Logs go to `../private-logs/`, outside public_html. HTTP access to the script is denied.
+Hostinger's cron panel confirms the daily `0 12 * * *` job invoking `/usr/bin/php` and `cron-document-reminders.php`; the scheduler's timezone remains unverified. Its saved output reported processed 0, sent 0 and failed 0 without a visible run timestamp, so it does not establish a recent delivery. The script calls `GET /api/cron/document-reminders` with a Bearer secret. POST is also supported. Missing configuration fails closed; backend and mail errors produce a failing cron result. The script reads `CRON_SECRET` from its environment or the protected `.env.cron` beside it. Logs go to `../private-logs/`, outside public_html. HTTP access to the script is denied.
 
 Confirmed bookings with an email address and no stored documents are eligible from seven days before arrival through arrival day, using Europe/Zagreb calendar dates. Imported bookings without an email are skipped. Atomic WordPress claims prevent overlapping runs from sending the same reminder. Delivery state is tied to booking dates and email; corrected bookings can receive a replacement link. Recipient and token come from the same claim snapshot.
 
@@ -60,4 +64,4 @@ Document forwarding requires every verified file to exist and be readable. Each 
 
 The rates plugin uses MotoPress's currency formatter and keeps the selected year filter. It never substitutes another year's seasons when prices for the requested year are missing. Restaurant links use normal browser navigation, and cards remain visible on narrow screens and with reduced motion.
 
-Booking/payment settings are in WordPress, not this Next.js app. Check-in is 15:00, timezone Europe/Zagreb, and WooCommerce uses the published basket page. Stripe production mode remains enabled. A healthy webhook and account configuration do not prove a completed card payment, 3-D Secure challenge, refund, or guest inbox delivery. Verify those separately in an isolated test environment before claiming complete payment end-to-end coverage.
+Booking/payment settings are in WordPress, not this Next.js app. Check-in is 15:00, timezone Europe/Zagreb, and WooCommerce uses the published basket page. Stripe production mode remains enabled. The [15 October verification record](docs/operations.md#verification-record-for-15-october-2026) confirms an isolated EUR 3,010 booking with decline and 3-D Secure cases, successful payment/webhook handling, document reminders/uploads, and a full test refund with cancellation and released availability. The [integration report](docs/integration-verification-2026-10-15.md) explains the document checks and their scope. These tests used captured mail and Stripe test mode; they do not establish live money movement, external inbox delivery, or every payment method.
