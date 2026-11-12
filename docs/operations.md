@@ -2,6 +2,18 @@
 
 This manual covers `villa-claudia.eu`, its WordPress booking system, and the Next.js guest document application at `documents.villa-claudia.eu`. WordPress owns availability, reservations, prices, and payments. Next.js normally shows arrival guidance. It accepts one adult guest's temporary identity copy only for a documented exceptional registration case. Routine registration uses inspection of the original at arrival. WordPress owns the case, storage and deletion; necessary reminders explain the original-inspection route. An upload is separate from payment and official eVisitor registration.
 
+## Operations variables
+
+Account-specific values are not written in this manual. They live in a local file `.env.operations` in the repository root. Git ignores that file, so it is never committed. `.env.operations.example` lists the same names with empty values. Copy it to `.env.operations` and fill it in from the provider account.
+
+| Variable | Meaning |
+| --- | --- |
+| `$HOSTING_ACCOUNT` | Hosting account ID, also the user name in server file system paths |
+| `$PROD_DB_NAME` | Production WordPress database name |
+| `$STAGING_DB_NAME` | Staging WordPress database name |
+
+The text below uses these names wherever a real value would go.
+
 ## Accounts and credentials
 
 Retrieve current credentials from the owner's approved password manager. Search by the exact service hostname and account email. Do not copy passwords, API keys, private upload links, or guest identity data into this repository, screenshots, support messages, or this manual. Keep credential inventories and historical access records private. A successful existing browser session proves access, but does not independently verify a saved password.
@@ -33,9 +45,13 @@ The production WordPress mail transport authenticated successfully over verified
 
 ## Hosting and deployment
 
-The Hostinger account contains a WordPress site and a Node.js site under the same domain family. Their conventional paths are `/home/<HOSTING_USER>/domains/villa-claudia.eu/public_html` and `/home/<HOSTING_USER>/domains/documents.villa-claudia.eu/public_html`. Obtain the actual hosting username from the private account record.
+The Hostinger account contains a WordPress site and a Node.js site under the same domain family. Their conventional paths are `/home/$HOSTING_ACCOUNT/domains/villa-claudia.eu/public_html` and `/home/$HOSTING_ACCOUNT/domains/documents.villa-claudia.eu/public_html`. Read `$HOSTING_ACCOUNT` from `.env.operations`.
 
 Hosting, email and domain renewal details are held in the private operations record. Confirm current renewal dates, automatic-renewal settings and billing responsibility in the provider account before relying on continued service.
+
+Keep the PHP error log, cron logs and backups outside the web root, in a directory with a deny-all rule. After a change to the server, send a HEAD request to the web path of the error log file, `/.env.cron`, `/.private/config.json` and `/logs/`. Each must return 403 or 404. Do not read the response bodies. Keep environment and configuration files at mode `0600`. A staging copy is allowed only behind access restriction, because it holds a copy of production data. Delete it when testing ends.
+
+Before any copy, restore or cleanup, confirm the target database. `wp-config.php` must name `$PROD_DB_NAME` on production and `$STAGING_DB_NAME` on staging. Never point a staging copy at the production database or the reverse.
 
 The Node app builds the repository's `main` branch using Node.js 22 and npm. Its build command is `npm run build`, using Next.js's Webpack backend. Verify the deployment revision after every release and compare it with the dated release records below. Updating Git does not install any WordPress plugin or CLI script. Deploy all three Docs PHP files together: `villa-claudia-docs.php`, `workflow.php` and `copy-privacy.php`.
 
@@ -102,7 +118,7 @@ WordPress retains necessary booking-session and Woo cart/checkout browser storag
 
 ## Reminders and recovery
 
-Hostinger's cron panel confirmed the daily `0 12 * * *` job running `/usr/bin/php /home/<HOSTING_USER>/domains/villa-claudia.eu/public_html/cron-document-reminders.php`. The scheduler's timezone remains unverified. The panel's saved output showed processed 0, sent 0 and failed 0, without a visible run timestamp. This is evidence of a saved successful empty run, not a dated current delivery receipt. SSH did not provide the `crontab` command; that did not establish an empty schedule. The script calls the Next.js reminder endpoint with a Bearer secret. It reads the secret from its environment or a protected `.env.cron` next to the script; logs belong outside `public_html`. HTTP access to the script must remain blocked.
+Hostinger's cron panel confirmed the daily `0 12 * * *` job running `/usr/bin/php /home/$HOSTING_ACCOUNT/domains/villa-claudia.eu/public_html/cron-document-reminders.php`. The scheduler's timezone remains unverified. The panel's saved output showed processed 0, sent 0 and failed 0, without a visible run timestamp. This is evidence of a saved successful empty run, not a dated current delivery receipt. SSH did not provide the `crontab` command; that did not establish an empty schedule. The script calls the Next.js reminder endpoint with a Bearer secret. It reads the secret from its environment or a protected `.env.cron` next to the script; logs belong outside `public_html`. HTTP access to the script must remain blocked.
 
 The reminder message asks for original-ID inspection at arrival and links to the guidance plus any active voluntary exception. It does not require routine advance copies or threaten cancellation for a missing scan. Confirmed bookings become eligible in the configured seven-days-before-arrival through arrival-day window, using Europe/Zagreb calendar dates. Imported bookings without an email address are skipped. WordPress claims each reminder atomically so overlapping runs do not normally send twice. Claims depend on dates and email, so a corrected booking may need a replacement link.
 
@@ -155,7 +171,7 @@ The [document integration verification](integration-verification-2026-10-15.md) 
 
 Live observations included WordPress 7.1.3, PHP 8.3.35, Divi 4.27.9, 23 installed plugins with 21 active and 2 inactive, TranslatePress 3.3.8, MotoPress Hotel Booking 6.4.0, WooCommerce 11.2.1, and Stripe Gateway 11.1.0. No WordPress updates remained pending at the version check, and core checksums passed. Docs 1.7.6, rates display 1.9.5 and restaurant plugin 1.4.6 were subsequently deployed with private rollback backups and matching source hashes. Authorized administrative access was confirmed. The owner confirmed `booking@villa-claudia.eu` as the current Stripe account email.
 
-Read-only public checks returned HTTP 200 for all 101 tested first-party URLs and all 122 collected first-party assets. Availability searches returned the expected seven-night results for October 2026 and June 2027 and no result for the tested one-night or insufficient-notice stays. See the [public audit](public-audit-2026-10-15.md) for exact scope and content issues. Follow-up updates corrected arrival directions in both languages to the owner's confirmed `Valentići 32` address, removed the unverified fixed border hours, and translated the German booking policy, booking terms, and all 22 displayed restaurant descriptions. The commercial terms were preserved; the document-handling paragraph was subsequently aligned with the chosen privacy workflow. Rates display 1.9.5 now shows 2026 and 2027 from MotoPress's actual recurring periods. Follow-up fixes resolved the restaurant location, German rate labels, heading structure and the separate mobile header. The later privacy release replaces the original document collection policy. These response checks do not establish visual or checkout behavior.
+Read-only public checks returned HTTP 200 for all 101 tested first-party URLs and all 122 collected first-party assets. Availability searches returned the expected seven-night results for October 2026 and June 2027 and no result for the tested one-night or insufficient-notice stays. Follow-up updates corrected arrival directions in both languages to the owner's confirmed `Valentići 32` address, removed the unverified fixed border hours, and translated the German booking policy, booking terms, and all 22 displayed restaurant descriptions. The commercial terms were preserved; the document-handling paragraph was subsequently aligned with the chosen privacy workflow. Rates display 1.9.5 now shows 2026 and 2027 from MotoPress's actual recurring periods. Follow-up fixes resolved the restaurant location, German rate labels, heading structure and the separate mobile header. The later privacy release replaces the original document collection policy. These response checks do not establish visual or checkout behavior.
 
 Three German translations incorrectly stored in the English WooCommerce dictionary were restored to English for First name, Last name and Phone, both on production and staging, after private backups. The German dictionary was unchanged. A separate checkout test found that the legacy Divi checkout submitted different hidden billing values from the visible fields. The native WooCommerce checkout fix was structurally verified on staging and deployed to production after a private backup.
 
@@ -163,11 +179,11 @@ The initial inspection found an empty checkout privacy URL and no published subs
 
 The privacy review also found [AZOP's official FAQ, question 33](https://azop.hr/najcesce-postavljena-pitanja/), which says apartment landlords obtain eVisitor information by inspecting identity documents and may not copy them. The owner subsequently identified evisitor.hr as the portal. Official HTZ guidance and its mobile manual distinguish necessary registration data/MRZ extraction from a retained image, and describe a narrowly justified temporary-copy exception with free refusal and destruction. The owner chose original inspection by default and a recorded, voluntary exception only. Company form alone does not justify routine copies. See the current workflow above and the [HTZ guidance](https://www.htz.hr/sites/default/files/2018-05/eVisitor-Smjernice%20GDPR.pdf).
 
-The public `/error_log` path initially returned HTTP 200 and was blocked during the inspection. The follow-up request returned HTTP 403 while the homepage remained HTTP 200. Sensitive environment/configuration files were restricted to mode `0600`. WordPress core and 15 plugins passed published checksum verification; eight plugins had no published checksums available. No checksum mismatch was reported.
+WordPress core and 15 plugins passed published checksum verification; eight plugins had no published checksums available. No checksum mismatch was reported.
 
-Hostinger staging was created at `qa20261015.villa-claudia.eu`. It is marked as staging, its cron is disabled, mail is captured privately, and outgoing requests are guarded to the staging site and Stripe for test preparation. Confirm those protections again before adding tests or extensions that can send data externally.
+The staging copy used for these checks is marked as staging, its cron is disabled, mail is captured privately, and outgoing requests are guarded to the staging site and Stripe for test preparation. Confirm those protections again before adding tests or extensions that can send data externally.
 
-The staging copy was deleted on 2026-10-15 after the release, because it was publicly reachable and held a full copy of production booking and guest data. The `qa20261015` subdomain, its database `u233867969_HFR6s` and the 2.3 GB `public_html/qa20261015` folder are gone. Before deletion, `wp-config.php` confirmed that production uses `u233867969_1OdLy` and staging used `u233867969_HFR6s`. Afterwards the subdomain no longer resolved, `/qa20261015/` on the main domain returned 404, and the production homepage, checkout and privacy pages returned 200. The Stripe test-mode webhook that pointed at staging has no target any more; delete it in the Stripe dashboard. `scripts/staging-guard.php` and `scripts/publish-privacy.php` still allow the old `qa20261015` hostname. A new staging copy needs its hostname updated there, the same protections, and either access restriction or deletion once testing ends.
+When a staging copy is removed, delete its Stripe test-mode webhook endpoint in the Stripe dashboard. `scripts/staging-guard.php` and `scripts/publish-privacy.php` allow one fixed staging hostname. A new staging copy needs its hostname set in both files, the protections described above, and access restriction while it exists.
 
 WooCommerce displayed a warning about its saved Stripe test webhook. The test webhook configuration was repaired for production and staging using test credentials. API verification confirmed enabled test endpoints with `livemode=false`, and production test mode remained disabled before and after. An isolated booking completed a EUR 3,010 test payment after a card-decline case, a failed 3-D Secure case and successful 3-D Secure authentication. Stripe verified `livemode=false`, the booking was confirmed and the order paid. The successful event had zero pending webhook deliveries; the staging handler recorded success and no outstanding failure.
 

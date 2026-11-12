@@ -1,12 +1,12 @@
 # Document workflow integration verification
 
-These checks used the isolated `qa20261015.villa-claudia.eu` WordPress copy and a local production build of the Next.js app. Every guest address ended in `@fake.test`. Files contained synthetic text or a one-pixel image. No identity document, real guest notification, registration submission, or live payment was used.
+These checks used an isolated staging WordPress copy and a local production build of the Next.js app. Every guest address ended in `@fake.test`. Files contained synthetic text or a one-pixel image. No identity document, real guest notification, registration submission, or live payment was used.
 
 ## Isolation checked before testing
 
 - WordPress reported the `staging` environment and `DISABLE_WP_CRON=true`.
 - The staging must-use plugin intercepted WordPress mail and blocked external requests apart from the staging site and Stripe test requests.
-- WooCommerce exposed test mode and cleared its live Stripe keys on the staging copy.
+- WooCommerce showed test mode and cleared its live Stripe keys on the staging copy.
 - The upcoming-booking endpoint initially returned zero bookings. Before reminder execution, every returned recipient was synthetic.
 - The local Next.js app used a TLS SMTP sink bound to `127.0.0.1:465`. Its temporary certificate was explicitly trusted through `NODE_EXTRA_CA_CERTS`. Certificate verification stayed enabled. The sink never relayed mail.
 
@@ -62,12 +62,10 @@ The PHP suites passed 108 assertions. The multipart harness starts its own loopb
 The checkout structure check uses a disposable cookie session and the hidden staging product. It does not create an order or submit a payment:
 
 ```text
-python scripts/verify-staging-checkout.py --url https://qa20261015.villa-claudia.eu --product-id <SYNTHETIC_PRODUCT_ID>
+python scripts/verify-staging-checkout.py --url <STAGING_URL> --product-id <SYNTHETIC_PRODUCT_ID>
 ```
 
-Replace the product placeholder with a fresh hidden synthetic product on the staging copy. The original inspection product is now in trash.
-
-The `qa20261015.villa-claudia.eu` copy used for these checks was deleted on 2026-10-15, so the command above no longer has a target. Point it at a new isolated copy and update the allowed hostname in `scripts/staging-guard.php` first. See [operations](operations.md) for details.
+Replace the URL placeholder with the staging copy and the product placeholder with a fresh hidden synthetic product on that copy. The staging hostname must be allowed in `scripts/staging-guard.php` first. See [operations](operations.md) for the staging rules.
 
 Repeat the full integration run only on an isolated copy with mail capture, fresh synthetic fixtures and cron disabled. Configure the local app with the staging WordPress endpoint and service key, a synthetic SMTP identity, the trusted local capture certificate and a separate cron secret. Do not copy production SMTP settings into this test environment. Validate the upstream recipient list before triggering reminder processing. Private fixture tokens, keys, captured MIME files and temporary scripts stay outside the repository.
 
@@ -77,10 +75,10 @@ The legacy checkout page used separate Divi billing, shipping and payment module
 
 The staging checkout page was changed to the native `[woocommerce_checkout]` shortcode with the Divi page builder disabled for that page. A fresh synthetic cart then rendered one checkout form, one billing-address field and payment fields in the same form. The browser payment test then passed address validation, displayed a Stripe test-card decline, and completed a successful 3-D Secure test payment. WooCommerce recorded the order as paid and MotoPress confirmed the booking. The test payment was refunded afterwards.
 
-The same native checkout fix was deployed to production after a private backup of the page and its metadata. The surrounding theme remains active. Only the checkout page was changed. No staging database was published.
+The same native checkout fix was deployed to production after a private backup of the page and its metadata. The surrounding theme remains active. Only the checkout page was changed.
 
 ## Custom plugin deployment
 
 Docs 1.7.6 and Restaurant Posts Zigzag 1.4.6 were deployed to production after source review, PHP syntax checks and private backups. All three deployed PHP files matched local SHA-256 hashes. WordPress reported the expected versions and the public homepage returned 200. Installable ZIP entries were rebuilt and verified byte-for-byte against their source files.
 
-Private rollback locations and checksums are recorded in the local operating documentation. No staging database was published. Next.js deployment and the separate rates update are outside this deployment receipt.
+Private rollback locations and checksums are recorded in the local operating documentation. Next.js deployment and the separate rates update are outside this deployment receipt.
