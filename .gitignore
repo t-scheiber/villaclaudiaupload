@@ -52,3 +52,7 @@ next-env.d.ts
 .cursor/
 .chatgpt/
 .gemini/
+
+# local operations values (never commit)
+.env.operations
+!.env.operations.example
