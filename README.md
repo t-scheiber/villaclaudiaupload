@@ -1,21 +1,42 @@
 # Villa Claudia guest registration
 
-Next.js guest guidance and exceptional temporary identity-copy handling, backed by WordPress/MotoPress. Normal registration uses inspection of the original identity document at arrival. Advance copies are not routinely required. Production runs Node.js 22 and npm on Hostinger.
+Next.js app for the guests of the Villa Claudia holiday rental. A guest opens a private link from a reminder email and sees arrival guidance. The app can also take one temporary copy of an identity document, but only for a documented exception. Normal registration uses inspection of the original identity document at arrival, and advance copies are not routinely required. WordPress with MotoPress holds the bookings, rates and payments. This repository also contains the WordPress plugins written for that site.
 
-The [operations manual](docs/operations.md) covers booking, payments, mailbox verification, deployment, privacy publication, cleanup and recovery. The [earlier integration report](docs/integration-verification-2026-10-15.md) records the initial document-workflow audit and its limits.
+The [operations manual](docs/operations.md) covers booking, payments, mailbox verification, deployment, privacy publication, cleanup and recovery. The [earlier integration report](docs/integration-verification-2026-10-15.md) records the initial document-workflow audit and its limits. The manual names Node.js 22 and npm on Hostinger for production, and CI uses Node.js 22 too.
+
+## Stack and layout
+
+The app uses Next.js 16.4.6 (App Router), React 19.3.1, TypeScript 6.0.3 and Tailwind CSS 4.3.5. Mail goes out through Nodemailer 10.5.0. Tests use the Node.js built-in test runner and linting uses ESLint 10.14 with typescript-eslint.
+
+- `app/` has the pages `/`, `/uploads`, `/uploads/<token>`, `/privacy` and `/privacy/de`, and four API routes: `api/booking`, `api/upload`, `api/copy-exception/withdraw` and `api/cron/document-reminders`.
+- `lib/` has the WordPress client, the reminder scheduler and the mail setup.
+- `villa-claudia-docs/`, `rates-display-plugin/`, `restaurant-posts-zigzag/` and `villa-claudia-privacy/` are the WordPress plugins, in PHP.
+- `cron-document-reminders.php` and `cron-privacy-retention.php` are command-line jobs for the WordPress host.
+- `tests/` has the Node tests (`*.test.cjs`), the PHP checks and two Python browser and publication checks.
+- `restaurant-posts-zigzag.zip`, `villa-claudia-docs.zip` and `villa-claudia-rates-display.zip` are installable packages of three of the plugins. At this commit their PHP contents match the source folders apart from line endings.
+
+## Run locally
+
+```sh
+npm ci
+npm run dev
+```
+
+`npm run dev` starts Next.js with Turbopack. The home page, `/uploads` and the privacy pages render without a backend. A private booking page and the API routes call WordPress, so they need `WORDPRESS_API_URL` and `WORDPRESS_API_KEY`. Use a test WordPress site with the Docs plugin, not the production site.
 
 ## Configuration and checks
 
 Set these server variables in Hostinger. Never commit their values or log them:
 
-- `NEXT_PUBLIC_BASE_URL=https://documents.villa-claudia.eu`
+- `NEXT_PUBLIC_BASE_URL=https://documents.villa-claudia.eu`. Reminder mail refuses to send unless it is an https URL. Page metadata falls back to this value when it is unset.
 - `WORDPRESS_API_URL=https://villa-claudia.eu/wp-json/villa-claudia/v1`
-- `WORDPRESS_API_KEY`, matching the WordPress plugin setting.
-- `CRON_SECRET`, matching the protected reminder-job configuration.
-- `EMAIL_HOST`, `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_FROM`, `ADMIN_EMAIL`.
-- `EMAIL_PORT`, 465 for implicit TLS or 587 for STARTTLS. Keep certificate validation enabled.
+- `WORDPRESS_API_KEY`, matching the WordPress plugin setting. Without the URL or the key, the API routes answer 503.
+- `CRON_SECRET`, matching the protected reminder-job configuration. Without it the reminder endpoint answers 503.
+- `EMAIL_HOST`, `EMAIL_USER` and `EMAIL_PASSWORD`. Without them no mail is sent.
+- `EMAIL_PORT`, 465 for implicit TLS or 587 for STARTTLS, default 587. Other ports are rejected, and the code always validates the server certificate.
+- `EMAIL_FROM` and `ADMIN_EMAIL` are optional. Both fall back to `administration@villa-claudia.eu` in the code.
 
-Install with `npm ci`, then run `npm test`, `npm run lint` and `npm run build`. Run the isolated PHP checks with PHP 8.3:
+The scripts are `npm run dev`, `npm run build`, `npm start`, `npm test` (`node --test tests/*.test.cjs`) and `npm run lint`. Install with `npm ci`, then run `npm test`, `npm run lint` and `npm run build`. GitHub Actions runs these on every pull request and push to `main` with Node.js 22, followed by the PHP checks below. The PHP checks need PHP 8.3:
 
 ```sh
 php tests/wordpress-workflow.php villa-claudia-docs/workflow.php
@@ -28,9 +49,9 @@ php tests/wordpress-privacy.php
 php tests/staging-guard.php
 ```
 
-These checks use isolated fixtures, not the production database or real email delivery. Forwarding tests verify that identity-copy forwarding is blocked. The release-content check requires the reviewed canonical notice to have `status: published`.
+These checks use isolated fixtures, not the production database or real email delivery. Forwarding tests verify that identity-copy forwarding is blocked. A Node test in `tests/privacy.test.cjs` requires the reviewed canonical notice to have `status: published`.
 
-Hostinger builds `main` with npm and deploys `.next`. Production uses Next.js's Webpack backend because the hosting runner fails to connect to Turbopack's CSS subprocess. Local development uses Turbopack. Git deployment does not install the WordPress plugins or CLI scripts.
+`npm run build` runs `next build --webpack`, and the operations manual says Hostinger builds `main` that way with Node.js 22 and npm. Local development uses Turbopack. Git deployment does not install the WordPress plugins or CLI scripts.
 
 ## Arrival guidance and documented exceptions
 
